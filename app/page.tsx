@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-const useCases = ["留不留", "今天穿不穿", "怎么搭", "适不适合我"];
+const useCases = ["留不留", "适不适合我", "怎么搭", "图片判断"];
 
 const steps = [
   {
@@ -11,7 +11,7 @@ const steps = [
   {
     number: "02",
     title: "选择判断目的",
-    text: "告诉我你想判断留不留、今天穿不穿、适不适合你，还是怎么搭。",
+    text: "告诉我们想判断要不要留下、适不适合你，还是应该怎么搭。",
   },
   {
     number: "03",
