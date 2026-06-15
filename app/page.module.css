@@ -1,13 +1,13 @@
 .page {
-  --background: #fafafa;
-  --foreground: #fff;
+  --background: #FFF5F0;
+  --foreground: #FFF5F0;
 
-  --text-primary: #000;
+  --text-primary: #333;
   --text-secondary: #666;
+  --accent-green: #7BA85B;
 
-  --button-primary-hover: #383838;
-  --button-secondary-hover: #f2f2f2;
-  --button-secondary-border: #ebebeb;
+  --button-primary: #7BA85B;
+  --button-primary-hover: #6a9649;
 
   display: flex;
   flex: 1;
@@ -16,6 +16,7 @@
   justify-content: center;
   font-family: var(--font-geist-sans);
   background-color: var(--background);
+  min-height: 100vh;
 }
 
 .main {
@@ -24,119 +25,114 @@
   width: 100%;
   max-width: 800px;
   flex-direction: column;
-  align-items: flex-start;
-  justify-content: space-between;
-  background-color: var(--foreground);
-  padding: 120px 60px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 60px;
+  padding: 60px 40px;
 }
 
-.intro {
+.hero {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  text-align: left;
-  gap: 24px;
-}
-
-.intro h1 {
-  max-width: 320px;
-  font-size: 40px;
-  font-weight: 600;
-  line-height: 48px;
-  letter-spacing: -2.4px;
-  text-wrap: balance;
-  color: var(--text-primary);
-}
-
-.intro p {
-  max-width: 440px;
-  font-size: 18px;
-  line-height: 32px;
-  text-wrap: balance;
-  color: var(--text-secondary);
-}
-
-.intro a {
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.ctas {
-  display: flex;
-  flex-direction: row;
-  width: 100%;
-  max-width: 440px;
-  gap: 16px;
-  font-size: 14px;
-}
-
-.ctas a {
-  display: flex;
-  justify-content: center;
   align-items: center;
-  height: 40px;
-  padding: 0 16px;
-  border-radius: 128px;
-  border: 1px solid transparent;
-  transition: 0.2s;
+  text-align: center;
+  gap: 24px;
+  max-width: 600px;
+}
+
+.title {
+  font-size: 72px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--accent-green);
+  margin: 0;
+  letter-spacing: -2px;
+}
+
+.subtitle {
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.description {
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin: 0;
+  max-width: 500px;
+}
+
+.primaryButton {
+  padding: 16px 48px;
+  font-size: 18px;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  background-color: var(--button-primary);
+  color: white;
   cursor: pointer;
-  width: fit-content;
-  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(123, 168, 91, 0.2);
+  min-width: 200px;
 }
 
-a.primary {
-  background: var(--text-primary);
-  color: var(--background);
-  gap: 8px;
+.primaryButton:hover {
+  background-color: var(--button-primary-hover);
+  box-shadow: 0 4px 16px rgba(123, 168, 91, 0.3);
+  transform: translateY(-2px);
 }
 
-a.secondary {
-  border-color: var(--button-secondary-border);
+.primaryButton:active {
+  transform: translateY(0);
 }
 
 /* Enable hover only on non-touch devices */
 @media (hover: hover) and (pointer: fine) {
-  a.primary:hover {
+  .primaryButton:hover {
     background: var(--button-primary-hover);
-    border-color: transparent;
-  }
-
-  a.secondary:hover {
-    background: var(--button-secondary-hover);
-    border-color: transparent;
+    box-shadow: 0 4px 16px rgba(123, 168, 91, 0.3);
   }
 }
 
 @media (max-width: 600px) {
   .main {
-    padding: 48px 24px;
+    padding: 40px 24px;
+    gap: 40px;
   }
 
-  .intro {
-    gap: 16px;
+  .title {
+    font-size: 48px;
   }
 
-  .intro h1 {
-    font-size: 32px;
-    line-height: 40px;
-    letter-spacing: -1.92px;
+  .subtitle {
+    font-size: 22px;
+  }
+
+  .description {
+    font-size: 16px;
+  }
+
+  .primaryButton {
+    padding: 14px 40px;
+    font-size: 16px;
+    min-width: 160px;
   }
 }
 
 @media (prefers-color-scheme: dark) {
-  .logo {
-    filter: invert();
-  }
-
   .page {
-    --background: #000;
-    --foreground: #000;
+    --background: #1a1a1a;
+    --foreground: #1a1a1a;
 
-    --text-primary: #ededed;
-    --text-secondary: #999;
+    --text-primary: #e8e8e8;
+    --text-secondary: #b3b3b3;
+    --accent-green: #8CBF60;
 
-    --button-primary-hover: #ccc;
-    --button-secondary-hover: #1a1a1a;
-    --button-secondary-border: #1a1a1a;
+    --button-primary: #7BA85B;
+    --button-primary-hover: #8CBF60;
   }
 }
