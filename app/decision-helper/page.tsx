@@ -532,15 +532,20 @@ export default function DecisionHelper() {
               onClick={handleSubmit}
               className={styles.submitButton}
               disabled={isSubmitting || !isFormComplete}
-            >
-              {isSubmitting
-                ? "正在看图判断，大约需要 15–25 秒..."
-                : isFormComplete
-                ? "快速生成判断"
-                : "请先上传图片并选择必填项"}
-            </button>
-            <p>只填前三项也可以快速判断；补充越多，结果会越具体。</p>
-          </div>
+        >
+          {isSubmitting
+            ? "正在看图判断，大约需要 15～25 秒..."
+            : isFormComplete
+            ? "快速生成判断"
+            : "请先上传图片并选择必填项"}
+        </button>
+
+        <p>
+         {isSubmitting
+          ? "先别关闭页面，我正在分析版型、颜色和搭配空间。"
+          : "只填前三项也可以快速判断；补充越多，结果会越具体。"}
+        </p>
+      </div>
         </form>
       </section>
     </main>
