@@ -84,37 +84,39 @@ type FormData = {
   imageName?: string;
   imageDataUrl?: string;
 };
-function isFilledText(value?: string) {
-  return Boolean(value && value.trim() && value !== "未填写");
+function formatDisplayText(value?: string) {
+  return value ? value.replace(/\//g, " / ") : "";
 }
-
 function getIntentCopy(intent?: string) {
   if (intent?.includes("怎么搭")) {
     return {
-      pageTitle: "搭配建议",
-      pageSubtitle: "结合图片和单品特征，给你更具体的穿搭方向和避雷提醒。",
-      resultLabel: "推荐搭法",
+      pageTitle: "搭配方案",
       spectrumTitle: "搭配可行度",
       spectrumLabels: ["不建议硬搭", "需要调整", "有搭配空间", "很好搭"],
+      heroEyebrow: "Styling Direction",
+      evidenceTitle: "搭配依据",
+      detailTitle: "详细分析",
     };
   }
 
   if (intent?.includes("适不适合")) {
     return {
       pageTitle: "适配度判断",
-      pageSubtitle: "结合图片中的颜色、版型、比例和风格，判断这件衣服是否适合你。",
-      resultLabel: "适配倾向",
       spectrumTitle: "适配度光谱",
       spectrumLabels: ["不太适合", "需要再观察", "有条件适合", "很适合你"],
+      heroEyebrow: "Fit Review",
+      evidenceTitle: "适配分析",
+      detailTitle: "详细分析",
     };
   }
 
   return {
     pageTitle: "留 / 不留判断",
-    pageSubtitle: "结合图片和你的补充信息，判断它是否值得继续留在衣橱里。",
-    resultLabel: "最终倾向",
     spectrumTitle: "留 / 不留光谱",
     spectrumLabels: ["建议放手", "再观察", "有条件留下", "值得留下"],
+    heroEyebrow: "Wardrobe Decision",
+    evidenceTitle: "判断依据",
+    detailTitle: "详细分析",
   };
 }
 
@@ -136,38 +138,20 @@ function getDisplayDecisionLabel(label: DecisionLabel, intent?: string) {
   return label;
 }
 
-function getHeroDecisionLabel(
-  label: DecisionLabel,
-  intent?: string,
-  primaryPlan?: StylingPlan
-) {
+function getHeroDecisionLabel(label: DecisionLabel, intent?: string, primaryPlan?: StylingPlan) {
   if (intent?.includes("怎么搭")) {
-    return primaryPlan?.scenario || "优先这样搭";
+    return formatDisplayText(primaryPlan?.scenario) || "优先这样搭";
   }
 
   return getDisplayDecisionLabel(label, intent);
 }
 
-function getHeroDescription(
-  result: EvaluationResult,
-  intent?: string,
-  primaryPlan?: StylingPlan
-) {
+function getHeroDescription(result: EvaluationResult, intent?: string, primaryPlan?: StylingPlan) {
   if (intent?.includes("怎么搭") && primaryPlan?.outfit) {
     return primaryPlan.outfit;
   }
 
   return result.decision.headline;
-}
-
-function getFormChips(formData: FormData, imageCheck?: ImageCheck) {
-  const mainItem = imageCheck?.visibleMainItem;
-
-  if (isFilledText(mainItem) && mainItem !== "看不清") {
-    return [mainItem];
-  }
-
-  return [formData.itemType].filter((item): item is string => isFilledText(item));
 }
 
 function shouldBlockForInvisibleTarget(result: EvaluationResult) {
@@ -178,11 +162,16 @@ function getImageCheckWarning(result: EvaluationResult) {
   const check = result.imageCheck;
 
   if (!check) return "";
-  if (check.targetItemVisible === false) return check.warning || "图片中没有清楚看到你选择的目标单品。";
+  if (check.targetItemVisible === false) {
+    return check.warning || "图片中没有清楚看到你选择的目标单品。";
+  }
+
   if (check.isTypeMatched === false) {
     return (
       check.warning ||
-      `你选择的是「${check.selectedItemType || "该类型"}」，但图片主体更像「${check.visibleMainItem || "另一类单品"}」。以下判断将优先依据图片主体。`
+      `你选择的是「${check.selectedItemType || "该类型"}」，但图片主体更像「${
+        check.visibleMainItem || "另一类单品"
+      }」。以下判断将优先依据图片主体。`
     );
   }
 
@@ -206,12 +195,10 @@ function isValidResult(value: unknown): value is EvaluationResult {
   );
 }
 
-
 function normalizeFormData(value: unknown): FormData | null {
   if (!isRecord(value)) return null;
 
   const itemType = typeof value.itemType === "string" ? value.itemType : "";
-
   if (!itemType) return null;
 
   const intent =
@@ -260,10 +247,6 @@ function normalizeFormData(value: unknown): FormData | null {
   };
 }
 
-function isValidForm(value: unknown): value is FormData {
-  return normalizeFormData(value) !== null;
-}
-
 function normalizeDecisionLabel(label: string): DecisionLabel {
   if (
     label === "建议放手" ||
@@ -305,38 +288,21 @@ function getSpectrumTone(label: DecisionLabel, intent?: string) {
   return "值得留下";
 }
 
-function getConclusionTitle(intent?: string) {
-  if (intent?.includes("怎么搭")) return "搭配判断依据";
-  if (intent?.includes("适不适合")) return "为什么这样判断适配度";
-  return "为什么是这个结论";
-}
-
-function getInsightItems(
+function getMainMetrics(
   result: EvaluationResult,
   intent?: string,
   decisionLabel?: DecisionLabel,
   primaryPlan?: StylingPlan
 ) {
   if (intent?.includes("怎么搭")) {
-    return [
-      {
-        label: "推荐方向",
-        value: primaryPlan?.scenario || result.uiSummary.bestScenario || "优先看第一套方案",
-      },
-      {
-        label: "搭配门槛",
-        value: result.uiSummary.stylingDifficulty,
-      },
-      {
-        label: "可行程度",
-        value: decisionLabel ? getDisplayDecisionLabel(decisionLabel, intent) : "有搭配空间",
-      },
-      {
-        label: "避雷重点",
-        value: primaryPlan?.avoid || "避免风格冲突",
-      },
-    ];
-  }
+  return [
+    { label: "搭配门槛", value: result.uiSummary.stylingDifficulty },
+    {
+      label: "可行程度",
+      value: decisionLabel ? getDisplayDecisionLabel(decisionLabel, intent) : "有搭配空间",
+    },
+  ];
+}
 
   if (intent?.includes("适不适合")) {
     return [
@@ -344,37 +310,84 @@ function getInsightItems(
         label: "适配程度",
         value: decisionLabel ? getDisplayDecisionLabel(decisionLabel, intent) : "需要再观察",
       },
+      { label: "搭配门槛", value: result.uiSummary.stylingDifficulty },
+      { label: "闲置风险", value: result.uiSummary.idleRisk },
+    ];
+  }
+
+  return [
+    { label: "保留价值", value: result.uiSummary.retentionValue },
+    { label: "闲置风险", value: result.uiSummary.idleRisk },
+    { label: "搭配门槛", value: result.uiSummary.stylingDifficulty },
+  ];
+}
+
+function getScenarioLabel(intent?: string) {
+  if (intent?.includes("怎么搭")) return "推荐场景";
+  if (intent?.includes("适不适合")) return "适合场景";
+  return "适合场景";
+}
+
+function getEvidenceItems(result: EvaluationResult, intent?: string, primaryPlan?: StylingPlan) {
+  const firstKeep = result.keepReasons[0];
+  const secondKeep = result.keepReasons[1];
+  const firstRisk = result.riskReasons[0];
+
+  const visualShape =
+    result.visualAnalysis?.silhouette ||
+    result.visualAnalysis?.proportion ||
+    result.visualAnalysis?.fabricAndDetails ||
+    "";
+
+  if (intent?.includes("怎么搭")) {
+  return [
+    {
+      title: "风格方向",
+      detail: primaryPlan?.whyItWorks || result.decision.headline || "整体更适合走一个明确风格方向。",
+    },
+    {
+      title: "视觉重心",
+      detail:
+        result.visualAnalysis?.proportion ||
+        result.visualAnalysis?.silhouette ||
+        "重点是让上半身露肤、裙长和鞋型保持轻盈。",
+    },
+    {
+      title: "搭配风险",
+      detail: primaryPlan?.avoid || firstRisk?.detail || "避免用风格冲突的单品削弱它的优势。",
+    },
+  ];
+}
+
+  if (intent?.includes("适不适合")) {
+    return [
       {
-        label: "适合场景",
-        value: result.uiSummary.bestScenario,
+        title: "适合你的地方",
+        detail: firstKeep?.detail || result.decision.headline,
       },
       {
-        label: "搭配门槛",
-        value: result.uiSummary.stylingDifficulty,
+        title: "适配风险",
+        detail: firstRisk?.detail || result.decision.reason,
       },
       {
-        label: "闲置风险",
-        value: result.uiSummary.idleRisk,
+        title: "版型与材质观察",
+        detail: visualShape || secondKeep?.detail || "需要结合版型、比例和材质判断整体适配度。",
       },
     ];
   }
 
   return [
     {
-      label: "保留价值",
-      value: result.uiSummary.retentionValue,
+      title: "单品亮点",
+      detail: firstKeep?.detail || result.decision.headline,
     },
     {
-      label: "闲置风险",
-      value: result.uiSummary.idleRisk,
+      title: "潜在短板",
+      detail: firstRisk?.detail || result.decision.reason,
     },
     {
-      label: "搭配门槛",
-      value: result.uiSummary.stylingDifficulty,
-    },
-    {
-      label: "适合场景",
-      value: result.uiSummary.bestScenario,
+      title: "版型与材质观察",
+      detail: visualShape || secondKeep?.detail || "需要结合版型、比例和材质判断真实利用率。",
     },
   ];
 }
@@ -383,10 +396,7 @@ function clampScore(score: number) {
   return Math.max(1, Math.min(5, Math.round(score)));
 }
 
-function getFallbackRatings(
-  formData: FormData,
-  result: EvaluationResult
-): RatingItem[] {
+function getFallbackRatings(formData: FormData, result: EvaluationResult): RatingItem[] {
   const decisionLabel = normalizeDecisionLabel(result.decision.label);
 
   const fit =
@@ -453,15 +463,6 @@ function normalizeRatingLabel(label: string) {
   return label;
 }
 
-function SummaryItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div className={styles.summaryItem}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
 function RatingCard({ item }: { item: RatingItem }) {
   const score = clampScore(item.score);
   const width = `${score * 20}%`;
@@ -484,6 +485,7 @@ function RatingCard({ item }: { item: RatingItem }) {
     </div>
   );
 }
+
 function saveFeedback(value: string) {
   const feedbackPayload = {
     value,
@@ -492,6 +494,7 @@ function saveFeedback(value: string) {
 
   localStorage.setItem("keepOrLetGoFeedback", JSON.stringify(feedbackPayload));
 }
+
 export default function Result() {
   const router = useRouter();
   const [formData, setFormData] = useState<FormData | null>(null);
@@ -557,7 +560,7 @@ export default function Result() {
       <div className={styles.page}>
         <main className={styles.main}>
           <div className={styles.header}>
-            <div className={styles.pageBadge}>Result · 判断报告</div>
+            <div className={styles.pageBadge}>判断报告</div>
             <h1 className={styles.title}>还没有生成判断结果</h1>
             <p className={styles.subtitle}>
               请先上传一张衣服图片，完成一次判断。结果生成后会显示在这里。
@@ -565,7 +568,7 @@ export default function Result() {
           </div>
 
           <section className={styles.suggestCard}>
-            <div className={styles.suggestionLabel}>Empty State</div>
+            <div className={styles.suggestionLabel}>暂无数据</div>
             <h2 className={styles.suggestionText}>暂无结果</h2>
             <p className={styles.suggestionDesc}>
               可能是还没有生成过判断，或浏览器本地结果已被清空。
@@ -593,19 +596,11 @@ export default function Result() {
   const primaryPlan = result.stylingPlans[0];
   const morePlans = result.stylingPlans.slice(1);
   const displayDecisionLabel = getDisplayDecisionLabel(decisionLabel, formData.intent);
-  const heroDecisionLabel = getHeroDecisionLabel(
-    decisionLabel,
-    formData.intent,
-    primaryPlan
-  );
+  const heroDecisionLabel = getHeroDecisionLabel(decisionLabel, formData.intent, primaryPlan);
   const heroDescription = getHeroDescription(result, formData.intent, primaryPlan);
-  const insightItems = getInsightItems(
-    result,
-    formData.intent,
-    decisionLabel,
-    primaryPlan
-  );
-  const formChips = getFormChips(formData, result.imageCheck);
+  const spectrumTone = getSpectrumTone(decisionLabel, formData.intent);
+  const mainMetrics = getMainMetrics(result, formData.intent, decisionLabel, primaryPlan);
+  const evidenceItems = getEvidenceItems(result, formData.intent, primaryPlan);
   const imageCheckWarning = getImageCheckWarning(result);
 
   const ratings =
@@ -650,7 +645,7 @@ export default function Result() {
       <div className={styles.page}>
         <main className={styles.main}>
           <div className={styles.header}>
-            <div className={styles.pageBadge}>Result · 图片信息不足</div>
+            <div className={styles.pageBadge}>图片信息不足</div>
             <h1 className={styles.title}>没有看清你要判断的单品</h1>
             <p className={styles.subtitle}>
               {imageCheckWarning || "请重新上传能看清目标单品的图片，或返回表单修改单品类型。"}
@@ -662,7 +657,8 @@ export default function Result() {
               <div className={styles.suggestionLabel}>需要重新确认</div>
               <h2 className={styles.suggestionText}>图片信息不足</h2>
               <p className={styles.suggestionDesc}>
-                你选择的是「{result.imageCheck?.selectedItemType || formData.itemType}」，但图片里没有清楚看到这个单品。为了避免误判，建议先修改图片或单品类型。
+                你选择的是「{result.imageCheck?.selectedItemType || formData.itemType}」，
+                但图片里没有清楚看到这个单品。为了避免误判，建议先修改图片或单品类型。
               </p>
 
               <div className={styles.bottomButtonArea}>
@@ -677,7 +673,7 @@ export default function Result() {
 
             <div className={styles.imagePanel}>
               <div className={styles.imagePanelHeader}>
-                <span>Uploaded Image</span>
+                <span>上传图片</span>
                 <strong>目标单品不可见</strong>
               </div>
 
@@ -702,78 +698,43 @@ export default function Result() {
   return (
     <div className={styles.page}>
       <main className={styles.main}>
-        <div className={styles.header}>
-          <div className={styles.pageBadge}>Result · 判断报告</div>
-          <h1 className={styles.title}>{resultCopy.pageTitle}</h1>
-          <p className={styles.subtitle}>{resultCopy.pageSubtitle}</p>
-        </div>
-
-        <section className={styles.resultHeroGrid}>
-          <div className={styles.suggestCard}>
-            <div className={styles.suggestionLabel}>{resultCopy.resultLabel}</div>
-            <h2 className={styles.suggestionText}>{heroDecisionLabel}</h2>
-            <p className={styles.suggestionDesc}>{heroDescription}</p>
+        <section className={styles.decisionCard}>
+          <div className={styles.decisionTopline}>
+            <span>{resultCopy.heroEyebrow}</span>
+            <strong>
+              {formData.itemType} · {resultCopy.pageTitle}
+            </strong>
           </div>
 
-          <div className={styles.imagePanel}>
-            <div className={styles.imagePanelHeader}>
-              <span>Uploaded Item</span>
-              <strong>AI 已参考图片</strong>
-            </div>
-
-            <div className={styles.resultImageBox}>
-              {formData.imageDataUrl ? (
-                <img
-                  src={formData.imageDataUrl}
-                  alt={formData.imageName || "上传的衣服图片"}
-                  className={styles.resultImage}
-                />
-              ) : (
-                <div className={styles.noImageState}>没有读取到图片预览</div>
-              )}
-            </div>
-
-            <div className={styles.formChips}>
-              {formChips.map((chip) => (
-                <span key={chip}>{chip}</span>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {imageCheckWarning && (
-          <section className={styles.spectrumSection}>
-            <div className={styles.conclusionBox}>
-              <span>图片校正提示</span>
-              <p>{imageCheckWarning}</p>
-            </div>
-          </section>
-        )}
-
-        <section className={styles.spectrumSection}>
-          <div className={styles.spectrumHeader}>
-            <div>
-              <h3>{resultCopy.spectrumTitle}</h3>
-              <p>{getSpectrumTone(decisionLabel, formData.intent)}</p>
-            </div>
-            <strong>{displayDecisionLabel}</strong>
+          <div className={styles.decisionHero}>
+            <h1>{heroDecisionLabel}</h1>
+            <p>{heroDescription}</p>
           </div>
 
-          <div className={styles.spectrumTrack}>
-            <div
-              className={styles.spectrumMarker}
-              style={{ left: getDecisionPosition(decisionLabel) }}
-            />
+          <p className={styles.finalNote}>{result.finalNote}</p>
+
+          <div className={styles.compactSpectrum}>
+            <div className={styles.compactSpectrumHeader}>
+              <span>{resultCopy.spectrumTitle}</span>
+              <strong>{spectrumTone}</strong>
+            </div>
+
+            <div className={styles.spectrumTrack}>
+              <div
+                className={styles.spectrumMarker}
+                style={{ left: getDecisionPosition(decisionLabel) }}
+              />
+            </div>
+
+            <div className={styles.spectrumEndpoints}>
+              <span>{resultCopy.spectrumLabels[0]}</span>
+              <span>{displayDecisionLabel}</span>
+              <span>{resultCopy.spectrumLabels[resultCopy.spectrumLabels.length - 1]}</span>
+            </div>
           </div>
 
-          <div className={styles.spectrumLabels}>
-            {resultCopy.spectrumLabels.map((label) => (
-              <span key={label}>{label}</span>
-            ))}
-          </div>
-
-          <div className={styles.insightStrip}>
-            {insightItems.map((item) => (
+          <div className={styles.metricGrid}>
+            {mainMetrics.map((item) => (
               <div key={item.label}>
                 <span>{item.label}</span>
                 <strong>{item.value}</strong>
@@ -781,9 +742,49 @@ export default function Result() {
             ))}
           </div>
 
-          <div className={styles.conclusionBox}>
-            <span>{getConclusionTitle(formData.intent)}</span>
-            <p>{result.decision.reason}</p>
+          <div className={styles.scenarioBlock}>
+            <span>{getScenarioLabel(formData.intent)}</span>
+            <strong>
+  {formatDisplayText(result.uiSummary.bestScenario || primaryPlan?.scenario) || "暂无明确场景"}
+</strong>
+          </div>
+        </section>
+
+        <section className={styles.evidenceCard}>
+          <div className={styles.evidenceImageWrap}>
+            {formData.imageDataUrl ? (
+              <img
+                src={formData.imageDataUrl}
+                alt={formData.imageName || "上传的衣服图片"}
+                className={styles.evidenceImage}
+              />
+            ) : (
+              <div className={styles.noImageState}>没有读取到图片预览</div>
+            )}
+          </div>
+
+          <div className={styles.evidenceContent}>
+            <div className={styles.evidenceMeta}>
+  <span>
+    {resultCopy.evidenceTitle} · {formData.itemType}
+  </span>
+</div>
+
+            <div className={styles.evidenceList}>
+              {evidenceItems.map((item) => (
+                <div key={item.title} className={styles.evidenceItem}>
+                  <span>{item.title}</span>
+                  <p>{item.detail}</p>
+                </div>
+              ))}
+            </div>
+
+            {imageCheckWarning && (
+              <div className={styles.warningBox}>
+                <span>图片校正提示</span>
+                <p>{imageCheckWarning}</p>
+              </div>
+            )}
           </div>
         </section>
 
@@ -791,23 +792,38 @@ export default function Result() {
           <section className={styles.analysisSection}>
             <div className={`${styles.analysisCard} ${styles.primaryStylingCard}`}>
               <div className={styles.sectionTitleRow}>
-                <h3 className={styles.analysisTitle}>优先怎么穿</h3>
-                <span>推荐方案</span>
+                <h3 className={styles.analysisTitle}>怎么搭配</h3>
               </div>
 
-              <div className={styles.primaryPlanLayout}>
+              {primaryPlan.whyItWorks && (
+                <p className={styles.stylingHighlight}>{primaryPlan.whyItWorks}</p>
+              )}
+
+              <div className={styles.stylingGrid}>
                 <div>
+                  <span>场景</span>
                   <strong>{primaryPlan.scenario}</strong>
-                  <p className={styles.outfitText}>{primaryPlan.outfit}</p>
                 </div>
 
-                <div className={styles.stylingTags}>
-                  <span>鞋包：{primaryPlan.shoesAndBag}</span>
-                  <span>颜色：{primaryPlan.colorDirection}</span>
+                <div>
+                  <span>搭配</span>
+                  <strong>{primaryPlan.outfit}</strong>
                 </div>
 
-                <p className={styles.avoidText}>避免：{primaryPlan.avoid}</p>
-                <p className={styles.whyText}>{primaryPlan.whyItWorks}</p>
+                <div>
+                  <span>鞋包</span>
+                  <strong>{primaryPlan.shoesAndBag}</strong>
+                </div>
+
+                <div>
+                  <span>配色</span>
+                  <strong>{primaryPlan.colorDirection}</strong>
+                </div>
+
+                <div className={styles.avoidItem}>
+                  <span>避雷</span>
+                  <strong>{primaryPlan.avoid}</strong>
+                </div>
               </div>
 
               {morePlans.length > 0 && (
@@ -830,20 +846,9 @@ export default function Result() {
           </section>
         )}
 
-        <section className={styles.analysisSection}>
-          <div className={styles.finalAdviceCard}>
-            <h3 className={styles.analysisTitle}>最终建议</h3>
-            <p className={styles.adviceText}>{result.finalNote}</p>
-          </div>
-        </section>
-
         <section className={styles.detailSection}>
           <div className={styles.detailHeader}>
-            <span>更多判断依据</span>
-            <div>
-              <h3>详细分析</h3>
-              <p>默认收起，想看具体依据时再展开。</p>
-            </div>
+            <h3>{resultCopy.detailTitle}</h3>
           </div>
 
           <div className={styles.detailAccordion}>
@@ -897,10 +902,10 @@ export default function Result() {
 
             <details className={styles.detailItem}>
               <summary>
-                <span className={styles.detailIcon}>险</span>
+                <span className={styles.detailIcon}>析</span>
                 <span className={styles.detailTextGroup}>
-                  <strong>理由与风险</strong>
-                  <em>为什么可留，也为什么要谨慎</em>
+                  <strong>单品亮点与风险</strong>
+                  <em>客观拆解这件衣服的优势和短板</em>
                 </span>
                 <span className={styles.detailToggle} aria-hidden="true">
                   <span className={styles.togglePlus}>+</span>
@@ -911,7 +916,7 @@ export default function Result() {
               <div className={styles.detailItemBody}>
                 <div className={styles.reasonCompareGrid}>
                   <div className={styles.compactReasonGroup}>
-                    <h4>留它的理由</h4>
+                    <h4>单品亮点</h4>
                     <ul className={styles.analysisList}>
                       {topKeepReasons.map((reason, index) => (
                         <li key={index}>
@@ -923,7 +928,7 @@ export default function Result() {
                   </div>
 
                   <div className={styles.compactReasonGroup}>
-                    <h4>不留的风险</h4>
+                    <h4>潜在风险</h4>
                     <ul className={styles.analysisList}>
                       {topRiskReasons.map((reason, index) => (
                         <li key={index}>
@@ -979,11 +984,7 @@ export default function Result() {
             </button>
           </div>
 
-          {feedback && (
-            <p className={styles.feedbackNote}>
-              已记录：{feedback}。谢谢反馈，这会帮助我继续优化判断结果。
-            </p>
-          )}
+          {feedback && <p className={styles.feedbackNote}>已记录：{feedback}。</p>}
         </section>
 
         <div className={styles.bottomButtonArea}>
