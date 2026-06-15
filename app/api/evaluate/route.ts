@@ -143,11 +143,15 @@ function buildPrompt(body: RequestBody, compact = false) {
 ${getIntentGuide(body.intent)}
 
 图片一致性检查要求：
-1. 你必须先判断图片主体和用户选择的“单品类型”是否匹配。
-2. 如果用户选择的是上衣、裤子、半裙、连衣裙、外套，但图片主体明显是另一种衣服，可以自动校正，继续判断，并在 imageCheck.warning 中说明。
-3. 如果用户选择的是鞋子或包包，但图片中没有清楚看到对应单品，targetItemVisible 必须为 false，warning 必须提示用户重新上传能看清目标单品的图片，或修改单品类型。
-4. 如果 targetItemVisible 为 false，仍然必须返回完整 JSON 结构，但其他判断字段可以简短说明“目标单品不可见，无法可靠判断”。
-5. 如果图片主体清楚但用户选错类型，targetItemVisible 为 true，visibleMainItem 填图片主体，isTypeMatched 填 false。
+1. 你必须先判断“用户选择的目标单品”在图片中是否可见，而不是判断画面里哪个单品最抢眼。
+2. 只要用户选择的目标单品在图片中能看见，就必须围绕该目标单品判断；即使图片里上衣、外套或人物更显眼，也不能自动改判其他单品。
+3. 全身穿搭图中，如果用户选择裤子、短裤、半裙、裙裤等下装，只要下装露出轮廓、长度、颜色或比例，就视为 targetItemVisible=true，并围绕下装判断。
+4. 只有当用户选择的目标单品完全看不清、被遮挡、或图片中根本没有出现时，targetItemVisible 才能为 false。
+5. 如果用户选择的是大类，例如“裤子”，图片里是短裤、裙裤、阔腿裤、牛仔裤、运动裤等，都应视为类型匹配或近似匹配，不要因为细分类不同而改判成上衣。
+6. 如果用户选择的是“外套”，图片里是衬衫式外套、薄开衫、罩衫、防晒衫等外穿层，可以视为外套类继续判断，不要过度纠正。
+7. visibleMainItem 应填写“本次实际判断的目标单品”，例如：裤子、短裤、半裙、外套、上衣、连衣裙、鞋子、包包。
+8. 如果目标单品可见但图片中另一个单品更抢眼，warning 可以写“图片中其他单品更显眼，但已按你选择的裤子继续判断”，不要改判其他单品。
+9. 如果 targetItemVisible 为 false，仍然必须返回完整 JSON 结构，但其他判断字段可以简短说明“目标单品不可见，无法可靠判断”。
 
 通用判断要求：
 1. 必须优先分析图片里的衣服本身，再结合表单。不能把表单信息包装成单品本身判断。
@@ -190,7 +194,7 @@ ${getIntentGuide(body.intent)}
 
 {
   "imageCheck": {
-    "visibleMainItem": "图片中最清楚的主单品",
+    "visibleMainItem": "本次实际判断的目标单品",
     "selectedItemType": "用户选择的单品类型",
     "isTypeMatched": true,
     "targetItemVisible": true,
@@ -289,7 +293,7 @@ ${getIntentGuide(body.intent)}
   "finalNote": "最后简短建议"
 }
 
-imageCheck.visibleMainItem 应使用中文短词，例如：上衣、裤子、半裙、连衣裙、外套、鞋子、包包、看不清。
+imageCheck.visibleMainItem 应填写本次实际判断的目标单品，使用中文短词，例如：上衣、裤子、短裤、半裙、裙裤、连衣裙、外套、鞋子、包包、看不清。
 imageCheck.selectedItemType 必须等于用户选择的单品类型。
 imageCheck.isTypeMatched 和 imageCheck.targetItemVisible 必须是布尔值 true 或 false。
 label 必须从这四个里选一个：建议放手、再观察、有条件留下、值得留下。
