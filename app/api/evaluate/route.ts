@@ -2,17 +2,28 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-type RequestBody = {
+type FormPayload = {
+  imageDataUrl?: string;
+  imageName?: string;
+  purpose?: string;
   intent?: string;
   itemType?: string;
-  priceFeeling?: string;
   concern?: string;
+  firstFeeling?: string;
   feeling?: string;
   similarItems?: string;
+  occasion?: string;
   scenario?: string;
+  priceFeeling?: string;
+  extraInfo?: string;
   note?: string;
-  imageName?: string;
-  imageDataUrl?: string;
+};
+
+type RequestBody = FormPayload & {
+  image?: string;
+  imageBase64?: string;
+  form?: FormPayload;
+  formData?: FormPayload;
 };
 
 type KimiResponse = {
@@ -27,6 +38,38 @@ type KimiResponse = {
     code?: string;
   };
 };
+
+function normalizeBody(body: RequestBody): RequestBody {
+  const form = body.form || body.formData || {};
+
+  return {
+    ...body,
+    imageDataUrl:
+      body.imageDataUrl ||
+      body.image ||
+      body.imageBase64 ||
+      form.imageDataUrl,
+    imageName: body.imageName || form.imageName,
+    intent: body.intent || body.purpose || form.intent || form.purpose,
+    itemType: body.itemType || form.itemType,
+    concern: body.concern || form.concern,
+    feeling:
+      body.feeling ||
+      body.firstFeeling ||
+      form.feeling ||
+      form.firstFeeling,
+    similarItems: body.similarItems || form.similarItems,
+    scenario:
+      body.scenario ||
+      body.occasion ||
+      form.scenario ||
+      form.occasion,
+    priceFeeling: body.priceFeeling || form.priceFeeling,
+    note: body.note || body.extraInfo || form.note || form.extraInfo,
+    form,
+    formData: form,
+  };
+}
 
 function getIntentGuide(intent?: string) {
   if (intent?.includes("怎么搭")) {
@@ -414,7 +457,8 @@ function parseResult(content: string) {
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as RequestBody;
+    const rawBody = (await request.json()) as RequestBody;
+    const body = normalizeBody(rawBody);
 
     if (!body.intent || !body.itemType || !body.imageDataUrl) {
       return NextResponse.json(

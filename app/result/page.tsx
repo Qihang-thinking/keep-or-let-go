@@ -70,13 +70,17 @@ type EvaluationResult = {
 
 type FormData = {
   intent?: string;
+  purpose?: string;
   itemType: string;
   concern: string;
   feeling: string;
+  firstFeeling?: string;
   similarItems: string;
   scenario: string;
+  occasion?: string;
   priceFeeling?: string;
   note: string;
+  extraInfo?: string;
   imageName?: string;
   imageDataUrl?: string;
 };
@@ -202,16 +206,62 @@ function isValidResult(value: unknown): value is EvaluationResult {
   );
 }
 
-function isValidForm(value: unknown): value is FormData {
-  return (
-    isRecord(value) &&
-    typeof value.itemType === "string" &&
-    typeof value.concern === "string" &&
-    typeof value.feeling === "string" &&
-    typeof value.similarItems === "string" &&
-    typeof value.scenario === "string" &&
+
+function normalizeFormData(value: unknown): FormData | null {
+  if (!isRecord(value)) return null;
+
+  const itemType = typeof value.itemType === "string" ? value.itemType : "";
+
+  if (!itemType) return null;
+
+  const intent =
+    typeof value.intent === "string"
+      ? value.intent
+      : typeof value.purpose === "string"
+      ? value.purpose
+      : "";
+
+  const feeling =
+    typeof value.feeling === "string"
+      ? value.feeling
+      : typeof value.firstFeeling === "string"
+      ? value.firstFeeling
+      : "";
+
+  const scenario =
+    typeof value.scenario === "string"
+      ? value.scenario
+      : typeof value.occasion === "string"
+      ? value.occasion
+      : "";
+
+  const note =
     typeof value.note === "string"
-  );
+      ? value.note
+      : typeof value.extraInfo === "string"
+      ? value.extraInfo
+      : "";
+
+  return {
+    intent,
+    purpose: typeof value.purpose === "string" ? value.purpose : intent,
+    itemType,
+    concern: typeof value.concern === "string" ? value.concern : "",
+    feeling,
+    firstFeeling: typeof value.firstFeeling === "string" ? value.firstFeeling : feeling,
+    similarItems: typeof value.similarItems === "string" ? value.similarItems : "",
+    scenario,
+    occasion: typeof value.occasion === "string" ? value.occasion : scenario,
+    priceFeeling: typeof value.priceFeeling === "string" ? value.priceFeeling : "",
+    note,
+    extraInfo: typeof value.extraInfo === "string" ? value.extraInfo : note,
+    imageName: typeof value.imageName === "string" ? value.imageName : "",
+    imageDataUrl: typeof value.imageDataUrl === "string" ? value.imageDataUrl : "",
+  };
+}
+
+function isValidForm(value: unknown): value is FormData {
+  return normalizeFormData(value) !== null;
 }
 
 function normalizeDecisionLabel(label: string): DecisionLabel {
@@ -473,8 +523,10 @@ export default function Result() {
     try {
       if (rawForm) {
         const parsedForm = JSON.parse(rawForm);
-        if (isValidForm(parsedForm)) {
-          setFormData(parsedForm);
+        const normalizedForm = normalizeFormData(parsedForm);
+
+        if (normalizedForm) {
+          setFormData(normalizedForm);
         } else {
           localStorage.removeItem("keepOrLetGoForm");
         }
