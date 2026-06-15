@@ -539,21 +539,21 @@ async function fileToCompressedJpegDataUrl(file: File): Promise<string> {
 
       <div className={styles.selectGrid}>
         {concernOptions.map((option) => {
-          const selected = isMultiSelected(form.concern, option);
+  const selected = form.concern === option;
 
-          return (
-            <button
-              key={option}
-              type="button"
-              className={`${styles.selectChip} ${
-                selected ? styles.selectChipActive : ""
-              }`}
-              onClick={() => toggleMultiValue("concern", option)}
-            >
-              {option}
-            </button>
-          );
-        })}
+  return (
+    <button
+      key={option}
+      type="button"
+      className={`${styles.selectChip} ${
+        selected ? styles.selectChipActive : ""
+      }`}
+      onClick={() => selectSingleValue("concern", option)}
+    >
+      {option}
+    </button>
+  );
+})}
       </div>
     </div>
 
@@ -617,7 +617,7 @@ async function fileToCompressedJpegDataUrl(file: File): Promise<string> {
 
       <div className={styles.selectGrid}>
         {occasionOptions.map((option) => {
-          const selected = isMultiSelected(form.occasion, option);
+          const selected = form.concern === option;
 
           return (
             <button
@@ -626,7 +626,7 @@ async function fileToCompressedJpegDataUrl(file: File): Promise<string> {
               className={`${styles.selectChip} ${
                 selected ? styles.selectChipActive : ""
               }`}
-              onClick={() => toggleMultiValue("occasion", option)}
+              onClick={() => selectSingleValue("concern", option)}
             >
               {option}
             </button>
