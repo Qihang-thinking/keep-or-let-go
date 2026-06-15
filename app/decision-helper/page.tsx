@@ -646,18 +646,24 @@ function isMultiSelected(value: string, option: string) {
           )}
 
           <div className={styles.submitArea}>
-            <button
-              type="submit"
-              className={styles.submitButton}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? "正在判断中..." : "开始判断"}
-            </button>
+  <button
+    type="submit"
+    className={styles.submitButton}
+    disabled={isSubmitting}
+  >
+    {isSubmitting ? "正在分析中..." : "开始判断"}
+  </button>
 
-            <p className={styles.submitHint}>
-              快速判断只需要上传图片、选择判断目的和单品类型。
-            </p>
-          </div>
+  {isSubmitting ? (
+    <p className={styles.loadingNotice}>
+      AI 正在分析图片和表单，通常需要 20–25 秒，请不要关闭页面。
+    </p>
+  ) : (
+    <p className={styles.submitHint}>
+      快速判断只需要上传图片、选择判断目的和单品类型。
+    </p>
+  )}
+</div>
         </form>
       </section>
     </main>

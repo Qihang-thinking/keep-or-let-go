@@ -312,9 +312,9 @@
 
 .optionCardActive {
   border-color: #cf597d;
-  background: linear-gradient(180deg, #fff2f6 0%, #ffe8ef 100%);
+  background: #cf597d;
   box-shadow: 0 12px 26px rgba(207, 89, 125, 0.13);
-  color: #b74768;
+  color: white;
 }
 
 .chipGrid {
@@ -508,6 +508,14 @@
   margin: 0;
   color: #7d6f74;
   font-size: 13px;
+  text-align: center;
+  line-height: 1.6;
+}
+.loadingNotice {
+  margin: 0;
+  color: #bd456b;
+  font-size: 13px;
+  font-weight: 750;
   text-align: center;
   line-height: 1.6;
 }
