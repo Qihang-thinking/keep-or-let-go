@@ -51,3 +51,4 @@ next-env.d.ts
 
 # more local backups
 *.final-mvp
+*.home-v1
