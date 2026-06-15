@@ -211,7 +211,49 @@ function selectSingleValue<K extends keyof FormState>(
 function isMultiSelected(value: string, option: string) {
   return splitMultiValue(value).includes(option);
 }
-  function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
+
+async function fileToCompressedJpegDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const img = new Image();
+
+      img.onload = () => {
+        const maxSize = 1280;
+        const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+        const width = Math.max(1, Math.round(img.width * scale));
+        const height = Math.max(1, Math.round(img.height * scale));
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("无法处理图片，请换一张图片重试。"));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.86));
+      };
+
+      img.onerror = () => {
+        reject(new Error("图片读取失败，请换一张 JPG 或 PNG 图片重试。"));
+      };
+
+      img.src = String(reader.result);
+    };
+
+    reader.onerror = () => {
+      reject(new Error("图片读取失败，请重新上传。"));
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+  async function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
 
     if (!file) return;
@@ -221,40 +263,33 @@ function isMultiSelected(value: string, option: string) {
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setErrorMessage("图片有点大，建议换一张 10MB 以内的图片。");
+    if (file.size > 18 * 1024 * 1024) {
+      setErrorMessage("图片有点大，建议换一张 18MB 以内的图片。");
       return;
     }
 
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      const result = reader.result;
-
-      if (typeof result !== "string") {
-        setErrorMessage("图片读取失败，请重新上传。");
-        return;
-      }
+    try {
+      setErrorMessage("");
+      const imageDataUrl = await fileToCompressedJpegDataUrl(file);
 
       const nextForm = {
         ...form,
-        imageDataUrl: result,
+        imageDataUrl,
         imageName: file.name,
       };
 
       setForm(nextForm);
-      setErrorMessage("");
 
       if (activeError) {
         setActiveError(getFirstMissingField(nextForm));
       }
-    };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "图片读取失败，请重新上传。";
 
-    reader.onerror = () => {
-      setErrorMessage("图片读取失败，请重新上传。");
-    };
-
-    reader.readAsDataURL(file);
+      setErrorMessage(message);
+      event.target.value = "";
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
