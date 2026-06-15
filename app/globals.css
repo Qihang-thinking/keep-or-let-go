@@ -519,3 +519,39 @@ button {
     grid-template-columns: repeat(3, 1fr);
   }
 }
+.homeMockPhoto {
+  width: 100%;
+  min-height: 190px;
+  border-radius: 28px;
+  border: 1px solid rgba(126, 171, 99, 0.2);
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 233, 238, 0.9), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(246, 252, 238, 0.9));
+  display: grid;
+  align-content: center;
+  gap: 10px;
+  padding: 28px;
+  color: #4f3a35;
+}
+
+.homeMockPhoto span {
+  width: fit-content;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(126, 171, 99, 0.14);
+  color: #6d9b58;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.homeMockPhoto strong {
+  font-size: 24px;
+  line-height: 1.25;
+  letter-spacing: -0.03em;
+}
+
+.homeMockPhoto p {
+  margin: 0;
+  color: #8a7470;
+  line-height: 1.6;
+}
