@@ -1,12 +1,58 @@
 "use client";
 
-import { useEffect, useState, type ChangeEvent } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  ChangeEvent,
+  FormEvent,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import styles from "./page.module.css";
 
-const intentOptions = [
-  "要不要留下 / 退掉",
-  "这件适不适合我",
-  "这件应该怎么搭",
+type RequiredField = "image" | "purpose" | "itemType";
+
+type FormState = {
+  imageDataUrl: string;
+  imageName: string;
+  purpose: string;
+  itemType: string;
+  concern: string;
+  firstFeeling: string;
+  similarItems: string;
+  occasion: string;
+  priceFeeling: string;
+  extraInfo: string;
+};
+
+const emptyForm: FormState = {
+  imageDataUrl: "",
+  imageName: "",
+  purpose: "",
+  itemType: "",
+  concern: "",
+  firstFeeling: "",
+  similarItems: "",
+  occasion: "",
+  priceFeeling: "",
+  extraInfo: "",
+};
+
+const purposeOptions = [
+  {
+    value: "要不要留下 / 退掉",
+    title: "留 / 不留",
+  },
+  {
+    value: "这件适不适合我",
+    title: "适不适合",
+  },
+  {
+    value: "这件应该怎么搭",
+    title: "怎么搭",
+  },
 ];
 
 const itemTypeOptions = [
@@ -14,12 +60,11 @@ const itemTypeOptions = [
   "裤子",
   "半裙",
   "连衣裙",
+  "套装",
   "外套",
   "鞋子",
-  "包包",
-  "其他",
+  "包 / 配饰",
 ];
-
 const concernOptions = [
   "显胖显矮",
   "不好搭",
@@ -29,11 +74,17 @@ const concernOptions = [
   "舍不得但很少穿",
 ];
 
-const feelingOptions = ["很喜欢", "还不错", "说不上来", "有点别扭", "明显不舒服"];
+const firstFeelingOptions = [
+  "很喜欢",
+  "还不错",
+  "说不上来",
+  "有点别扭",
+  "明显不舒服",
+];
 
 const similarItemsOptions = ["没有", "有一两件", "有很多", "不确定"];
 
-const scenarioOptions = [
+const occasionOptions = [
   "日常出门",
   "通勤",
   "约会聚会",
@@ -50,607 +101,573 @@ const priceFeelingOptions = [
   "明显不值",
   "不记得价格",
 ];
+function DecisionHelperContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-type SavedForm = {
-  intent?: string;
-  itemType?: string;
-  concern?: string;
-  feeling?: string;
-  similarItems?: string;
-  scenario?: string;
-  priceFeeling?: string;
-  note?: string;
-  imageName?: string;
-  imageDataUrl?: string;
-};
-
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const objectUrl = URL.createObjectURL(file);
-    const image = new Image();
-
-    image.onload = () => {
-      try {
-        const maxSize = 1280;
-        const scale = Math.min(
-          1,
-          maxSize / image.width,
-          maxSize / image.height
-        );
-
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.round(image.width * scale);
-        canvas.height = Math.round(image.height * scale);
-
-        const context = canvas.getContext("2d");
-
-        if (!context) {
-          throw new Error("图片压缩失败");
-        }
-
-        context.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-        const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.72);
-
-        URL.revokeObjectURL(objectUrl);
-        resolve(compressedDataUrl);
-      } catch {
-        URL.revokeObjectURL(objectUrl);
-        reject(new Error("图片读取失败"));
-      }
-    };
-
-    image.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      reject(new Error("图片读取失败"));
-    };
-
-    image.src = objectUrl;
-  });
-}
-
-function getCleanValue(value?: string) {
-  if (!value || value === "未填写") return "";
-  return value;
-}
-
-function getScenarioValues(value?: string) {
-  const cleanValue = getCleanValue(value);
-
-  if (!cleanValue) return [];
-
-  return cleanValue
-    .split("、")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-export default function DecisionHelper() {
-  const [intent, setIntent] = useState("");
-  const [itemType, setItemType] = useState("");
-  const [concern, setConcern] = useState("");
-  const [feeling, setFeeling] = useState("");
-  const [similarItems, setSimilarItems] = useState("");
-  const [scenarios, setScenarios] = useState<string[]>([]);
-  const [priceFeeling, setPriceFeeling] = useState("");
-  const [note, setNote] = useState("");
-  const [image, setImage] = useState<File | null>(null);
-  const [savedImageDataUrl, setSavedImageDataUrl] = useState("");
-  const [savedImageName, setSavedImageName] = useState("");
-  const [previewUrl, setPreviewUrl] = useState("");
-  const [error, setError] = useState("");
+  const [form, setForm] = useState<FormState>(emptyForm);
+  const [showOptional, setShowOptional] = useState(false);
+  const [activeError, setActiveError] = useState<RequiredField | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [optionalOpen, setOptionalOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
-  const activePreviewUrl = previewUrl || savedImageDataUrl;
-  const activeImageName = image?.name || savedImageName;
-  const hasImage = Boolean(image || savedImageDataUrl);
-  const isFormComplete = Boolean(intent && itemType && hasImage);
+  const imageRef = useRef<HTMLDivElement | null>(null);
+  const purposeRef = useRef<HTMLDivElement | null>(null);
+  const itemTypeRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    const shouldReset =
-      new URLSearchParams(window.location.search).get("reset") === "1";
+    const shouldReset = searchParams.get("reset") === "1";
 
     if (shouldReset) {
       localStorage.removeItem("keepOrLetGoForm");
       localStorage.removeItem("keepOrLetGoResult");
       localStorage.removeItem("keepOrLetGoFeedback");
-      window.history.replaceState(null, "", "/decision-helper");
+      setForm(emptyForm);
+      setActiveError(null);
       return;
     }
 
-    const rawForm = localStorage.getItem("keepOrLetGoForm");
+    const savedForm = localStorage.getItem("keepOrLetGoForm");
 
-    if (!rawForm) return;
-
-    try {
-      const savedForm = JSON.parse(rawForm) as SavedForm;
-      const restoredScenarios = getScenarioValues(savedForm.scenario);
-
-      setIntent(getCleanValue(savedForm.intent));
-      setItemType(getCleanValue(savedForm.itemType));
-      setConcern(getCleanValue(savedForm.concern));
-      setFeeling(getCleanValue(savedForm.feeling));
-      setSimilarItems(getCleanValue(savedForm.similarItems));
-      setScenarios(restoredScenarios);
-      setPriceFeeling(getCleanValue(savedForm.priceFeeling));
-      setNote(getCleanValue(savedForm.note));
-      setSavedImageDataUrl(savedForm.imageDataUrl || "");
-      setSavedImageName(savedForm.imageName || "");
-
-      if (
-        getCleanValue(savedForm.concern) ||
-        getCleanValue(savedForm.feeling) ||
-        getCleanValue(savedForm.similarItems) ||
-        restoredScenarios.length > 0 ||
-        getCleanValue(savedForm.priceFeeling) ||
-        getCleanValue(savedForm.note)
-      ) {
-        setOptionalOpen(true);
+    if (savedForm) {
+      try {
+        const parsed = JSON.parse(savedForm) as Partial<FormState>;
+        setForm({
+          ...emptyForm,
+          ...parsed,
+        });
+      } catch {
+        localStorage.removeItem("keepOrLetGoForm");
       }
-    } catch (error) {
-      console.error("恢复表单失败", error);
     }
-  }, []);
+  }, [searchParams]);
 
-  useEffect(() => {
-    if (!image) {
-      setPreviewUrl("");
-      return;
-    }
+  function getFirstMissingField(nextForm: FormState): RequiredField | null {
+    if (!nextForm.imageDataUrl) return "image";
+    if (!nextForm.purpose) return "purpose";
+    if (!nextForm.itemType) return "itemType";
+    return null;
+  }
 
-    const objectUrl = URL.createObjectURL(image);
-    setPreviewUrl(objectUrl);
+  function scrollToField(field: RequiredField) {
+    const refMap = {
+      image: imageRef,
+      purpose: purposeRef,
+      itemType: itemTypeRef,
+    };
 
-    return () => URL.revokeObjectURL(objectUrl);
-  }, [image]);
+    refMap[field].current?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
+  }
 
-  const clearError = () => {
-    if (error) setError("");
-  };
+  function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
+    setErrorMessage("");
 
-  const getFriendlyErrorMessage = (message: string) => {
-    if (message.includes("图片读取失败")) {
-      return "图片读取失败，请重新选择一张图片。";
-    }
-
-    if (message.includes("图片格式")) {
-      return "这个文件看起来不是图片格式，请换一张 JPG、PNG 或 HEIC 图片。";
-    }
-
-    if (message.includes("请求超时") || message.includes("AbortError")) {
-      return "这次生成时间太久了，可能是网络波动或图片较大。请稍后重试，或换一张更清晰、体积更小的图片。";
-    }
-
-    if (message.includes("Failed to fetch") || message.includes("NetworkError")) {
-      return "网络连接不稳定，暂时没有成功生成。请检查网络后重新试一次。";
-    }
-
-    if (
-      message.includes("Kimi") ||
-      message.includes("API") ||
-      message.includes("JSON") ||
-      message.includes("结果结构") ||
-      message.includes("temperature") ||
-      message.includes("reasoning_content")
-    ) {
-      return "这次没有成功生成判断，可能是模型返回异常或图片较难识别。请重新生成一次，或换一张更清晰的图片。";
-    }
-
-    return "这次没有成功生成判断，请稍后重新试一次。";
-  };
-
-  const toggleScenario = (value: string) => {
-    setScenarios((current) =>
-      current.includes(value)
-        ? current.filter((item) => item !== value)
-        : [...current, value]
-    );
-
-    clearError();
-  };
-
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-
-    if (!selectedFile) return;
-
-    if (!selectedFile.type.startsWith("image/")) {
-      setImage(null);
-      setSavedImageDataUrl("");
-      setSavedImageName("");
-      setError("图片格式不支持，请选择一张图片文件。");
-      e.target.value = "";
-      return;
-    }
-
-    const maxSizeInMB = 5;
-    const maxSizeInBytes = maxSizeInMB * 1024 * 1024;
-
-    if (selectedFile.size > maxSizeInBytes) {
-      setError(`图片太大了，请选择 ${maxSizeInMB}MB 以内的图片。`);
-      e.target.value = "";
-      return;
-    }
-
-    setImage(selectedFile);
-    setSavedImageDataUrl("");
-    setSavedImageName("");
-    localStorage.removeItem("keepOrLetGoResult");
-    clearError();
-  };
-
-  const handleSubmit = async () => {
-    if (isSubmitting) return;
-
-    if (!hasImage) {
-      setError("请先上传一张衣服图片或试穿图。");
-      return;
-    }
-
-    if (!intent || !itemType) {
-      setError("请先选择判断目的和单品类型。");
-      return;
-    }
-
-    try {
-      setIsSubmitting(true);
-      setError("");
-
-      const imageDataUrl = image ? await fileToDataUrl(image) : savedImageDataUrl;
-
-      if (!imageDataUrl) {
-        throw new Error("图片读取失败");
-      }
-
-      const payload = {
-        intent,
-        itemType,
-        concern: concern || "未填写",
-        feeling: feeling || "未填写",
-        similarItems: similarItems || "未填写",
-        scenario: scenarios.length > 0 ? scenarios.join("、") : "未填写",
-        priceFeeling: priceFeeling || "未填写",
-        note,
-        imageName: image?.name || savedImageName || "",
-        imageDataUrl,
+    setForm((prev) => {
+      const next = {
+        ...prev,
+        [key]: value,
       };
 
-      localStorage.setItem("keepOrLetGoForm", JSON.stringify(payload));
-      localStorage.removeItem("keepOrLetGoResult");
+      if (activeError) {
+        setActiveError(getFirstMissingField(next));
+      }
 
-      const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), 60000);
+      return next;
+    });
+  }
+function splitMultiValue(value: string) {
+  return value
+    .split("、")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function toggleMultiValue<K extends keyof FormState>(
+  key: K,
+  option: string
+) {
+  const currentValue = String(form[key] || "");
+  const currentList = splitMultiValue(currentValue);
+  const exists = currentList.includes(option);
+
+  const nextList = exists
+    ? currentList.filter((item) => item !== option)
+    : [...currentList, option];
+
+  updateForm(key, nextList.join("、") as FormState[K]);
+}
+
+function selectSingleValue<K extends keyof FormState>(
+  key: K,
+  option: string
+) {
+  const currentValue = String(form[key] || "");
+  updateForm(key, (currentValue === option ? "" : option) as FormState[K]);
+}
+
+function isMultiSelected(value: string, option: string) {
+  return splitMultiValue(value).includes(option);
+}
+  function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setErrorMessage("请上传图片格式的文件。");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setErrorMessage("图片有点大，建议换一张 10MB 以内的图片。");
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const result = reader.result;
+
+      if (typeof result !== "string") {
+        setErrorMessage("图片读取失败，请重新上传。");
+        return;
+      }
+
+      const nextForm = {
+        ...form,
+        imageDataUrl: result,
+        imageName: file.name,
+      };
+
+      setForm(nextForm);
+      setErrorMessage("");
+
+      if (activeError) {
+        setActiveError(getFirstMissingField(nextForm));
+      }
+    };
+
+    reader.onerror = () => {
+      setErrorMessage("图片读取失败，请重新上传。");
+    };
+
+    reader.readAsDataURL(file);
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const firstMissing = getFirstMissingField(form);
+
+    if (firstMissing) {
+      setActiveError(firstMissing);
+      scrollToField(firstMissing);
+      return;
+    }
+
+    setActiveError(null);
+    setErrorMessage("");
+    setIsSubmitting(true);
+
+    try {
+      localStorage.setItem("keepOrLetGoForm", JSON.stringify(form));
 
       const response = await fetch("/api/evaluate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      }).finally(() => window.clearTimeout(timeoutId));
+        body: JSON.stringify({
+          image: form.imageDataUrl,
+          imageDataUrl: form.imageDataUrl,
+          imageBase64: form.imageDataUrl,
+          form,
+          formData: form,
+        }),
+      });
+
+      const data = await response.json();
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.error || "API 请求失败");
+        throw new Error(data?.error || "判断失败，请稍后再试。");
       }
 
-      const result = await response.json();
+      localStorage.setItem("keepOrLetGoResult", JSON.stringify(data));
+      router.push("/result");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "判断失败，请稍后再试。";
 
-      if (!result?.decision || !result?.uiSummary || !result?.stylingPlans) {
-        throw new Error("结果结构异常");
-      }
-
-      localStorage.setItem("keepOrLetGoResult", JSON.stringify(result));
-      window.location.href = "/result";
-    } catch (e) {
-      console.error("生成建议失败", e);
-
-      const message = e instanceof Error ? e.message : "";
-      setError(getFriendlyErrorMessage(message));
+      setErrorMessage(message);
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }
+
+  const imageError = activeError === "image";
+  const purposeError = activeError === "purpose";
+  const itemTypeError = activeError === "itemType";
+
+  const progressSteps = [
+    {
+      label: "上传图片",
+      done: Boolean(form.imageDataUrl),
+    },
+    {
+      label: "选择判断",
+      done: Boolean(form.purpose && form.itemType),
+    },
+    {
+      label: "获得建议",
+      done: false,
+    },
+  ];
 
   return (
     <main className={styles.page}>
-      <section className={styles.hero}>
-        <div className={styles.badge}>Decision Helper · 单件判断</div>
-        <h1 className={styles.title}>判断这件衣服，适不适合你</h1>
-        <p className={styles.subtitle}>
-          上传试穿照或衣服照片，选择你这次想判断的问题。AI 会结合图片、场景、穿着感受和衣橱重复度，给你更具体的判断和搭配建议。
-        </p>
-      </section>
-
-      <section className={styles.stepBar} aria-label="判断流程">
-        <Step active label="上传照片" number="01" />
-        <div className={styles.stepLine} />
-        <Step active label="选择目的" number="02" />
-        <div className={styles.stepLine} />
-        <Step label="获得建议" number="03" />
-      </section>
-
-      <section className={styles.card}>
-        <div className={styles.uploadPanel}>
-          <div className={styles.panelHeader}>
-            <span className={styles.panelEyebrow}>Photo</span>
-            <h2>上传试穿照或衣服照片</h2>
-            <p>
-              建议优先上传上身图。能看到肩线、腰线、长度和整体比例，判断会更准确。
-              图片仅用于本次判断，并保存在你的浏览器本地用于展示结果，不会公开展示。
-            </p>
-          </div>
-
-          <label htmlFor="imageUpload" className={styles.uploadBox}>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleFileChange}
-              className={styles.fileInput}
-              id="imageUpload"
-            />
-
-            {activePreviewUrl ? (
-              <img
-                src={activePreviewUrl}
-                alt="已上传的衣服照片预览"
-                className={styles.previewImage}
-              />
-            ) : (
-              <div className={styles.uploadPlaceholder}>
-                <div className={styles.uploadIcon}>＋</div>
-                <strong>点击选择图片</strong>
-                <span>支持试穿照、商品图、搭配图</span>
-              </div>
-            )}
-          </label>
-
-          {activeImageName && (
-            <div className={styles.fileInfo}>
-              <span>已选择</span>
-              <strong>{activeImageName}</strong>
-            </div>
-          )}
+      <section className={styles.shell}>
+        <div className={styles.topBar}>
+          <Link href="/" className={styles.backLink}>
+            ← 返回首页
+          </Link>
+          <span className={styles.stepBadge}>单件判断</span>
         </div>
 
-        <form className={styles.formPanel} onSubmit={(e) => e.preventDefault()}>
-          <div className={styles.panelHeader}>
-            <span className={styles.panelEyebrow}>Details</span>
-            <h2>先完成快速判断</h2>
-            <p>上传图片后，只选判断目的和单品类型就能生成结果；补充更多信息会让判断更具体。</p>
+        <header className={styles.hero}>
+          <p className={styles.kicker}>Keep or Let Go</p>
+          <h1 className={styles.title}>判断这件衣服</h1>
+
+          <div className={styles.subtitleBlock}>
+            <p>上传照片，选择判断目的和单品类型。</p>
+            <p>补充可选项，提供更多信息，可让判断更加准确。</p>
           </div>
+        </header>
 
-          <div className={styles.requiredBlock}>
-            <OptionsField
-              label="你这次想判断什么"
-              required
-              options={intentOptions}
-              value={intent}
-              onChange={(v) => {
-                setIntent(v);
-                clearError();
-              }}
-            />
-
-            <OptionsField
-              label="单品类型"
-              required
-              options={itemTypeOptions}
-              value={itemType}
-              onChange={(v) => {
-                setItemType(v);
-                clearError();
-              }}
-            />
-          </div>
-
-          <details
-            className={styles.optionalDetails}
-            open={optionalOpen}
-            onToggle={(event) => setOptionalOpen(event.currentTarget.open)}
-          >
-            <summary>
-              <span>补充更多信息</span>
-              <strong>可选 · 让判断更准</strong>
-            </summary>
-
-            <div className={styles.optionalFields}>
-              <OptionsField
-                label="最纠结什么"
-                options={concernOptions}
-                value={concern}
-                onChange={(v) => {
-                  setConcern(v);
-                  clearError();
-                }}
-              />
-
-              <OptionsField
-                label="穿上后的第一感受"
-                options={feelingOptions}
-                value={feeling}
-                onChange={(v) => {
-                  setFeeling(v);
-                  clearError();
-                }}
-              />
-
-              <OptionsField
-                label="衣橱里有没有类似单品"
-                options={similarItemsOptions}
-                value={similarItems}
-                onChange={(v) => {
-                  setSimilarItems(v);
-                  clearError();
-                }}
-              />
-
-              <MultiOptionsField
-                label="可能使用场景"
-                options={scenarioOptions}
-                values={scenarios}
-                onChange={toggleScenario}
-              />
-
-              <OptionsField
-                label="你对价格的感受"
-                options={priceFeelingOptions}
-                value={priceFeeling}
-                onChange={(v) => {
-                  setPriceFeeling(v);
-                  clearError();
-                }}
-              />
-
-              <div className={styles.formSection}>
-                <label className={styles.label} htmlFor="note">
-                  补充说明
-                  <span>可选</span>
-                </label>
-                <textarea
-                  id="note"
-                  placeholder="比如：我担心它显胖 / 腰线不对 / 颜色不好搭 / 买回来可能很少穿"
-                  value={note}
-                  onChange={(e) => {
-                    setNote(e.target.value);
-                    clearError();
-                  }}
-                  className={styles.textarea}
-                  rows={4}
-                />
-              </div>
+        <div className={styles.progressBar}>
+          {progressSteps.map((step, index) => (
+            <div
+              key={step.label}
+              className={`${styles.progressStep} ${
+                step.done ? styles.progressStepDone : ""
+              }`}
+            >
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <strong>{step.label}</strong>
             </div>
-          </details>
+          ))}
+        </div>
 
-          {error && <div className={styles.error}>{error}</div>}
+        <form className={styles.form} onSubmit={handleSubmit}>
+          <section
+            ref={imageRef}
+            className={`${styles.card} ${imageError ? styles.cardError : ""}`}
+          >
+            <div className={styles.cardHeader}>
+              <div className={styles.cardTitleRow}>
+                <span className={styles.requiredTag}>必填</span>
+                <h2 className={styles.cardTitle}>上传图片</h2>
+              </div>
+              <p className={styles.cardHint}>最好上传正面试穿照，能看到肩线、腰线和整体比例。</p>
+            </div>
 
-          <div className={styles.buttonArea}>
+            <label className={styles.uploadBox}>
+              <input
+                className={styles.fileInput}
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+              />
+
+              {form.imageDataUrl ? (
+                <div className={styles.previewWrap}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={form.imageDataUrl}
+                    alt="已上传的衣服图片"
+                    className={styles.previewImage}
+                  />
+                  <div className={styles.previewInfo}>
+                    <strong>已选择图片</strong>
+                    <span>{form.imageName || "image"}</span>
+                    <em>点击可重新选择</em>
+                  </div>
+                </div>
+              ) : (
+                <div className={styles.uploadPlaceholder}>
+                  <span className={styles.uploadIcon}>＋</span>
+                  <strong>点击选择图片</strong>
+          
+                </div>
+              )}
+            </label>
+
+            {imageError && (
+              <p className={styles.fieldError}>先上传一张图片，再继续判断。</p>
+            )}
+          </section>
+
+          <section
+            ref={purposeRef}
+            className={`${styles.card} ${purposeError ? styles.cardError : ""}`}
+          >
+            <div className={styles.cardHeader}>
+              <div className={styles.cardTitleRow}>
+                <span className={styles.requiredTag}>必填</span>
+                <h2 className={styles.cardTitle}>判断目的</h2>
+              </div>
+              <p className={styles.cardHint}>选择你这次最想解决的问题。</p>
+            </div>
+
+            <div className={styles.optionGrid}>
+              {purposeOptions.map((option) => {
+                const selected = form.purpose === option.value;
+
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={`${styles.optionCard} ${
+                      selected ? styles.optionCardActive : ""
+                    }`}
+                    onClick={() => updateForm("purpose", option.value)}
+                  >
+                    <strong>{option.title}</strong>
+                  </button>
+                );
+              })}
+            </div>
+
+            {purposeError && (
+              <p className={styles.fieldError}>请选择这次主要想判断什么。</p>
+            )}
+          </section>
+
+          <section
+            ref={itemTypeRef}
+            className={`${styles.card} ${itemTypeError ? styles.cardError : ""}`}
+          >
+            <div className={styles.cardHeader}>
+              <div className={styles.cardTitleRow}>
+                <span className={styles.requiredTag}>必填</span>
+                <h2 className={styles.cardTitle}>单品类型</h2>
+              </div>
+              <p className={styles.cardHint}>让判断更贴近具体穿搭场景。</p>
+            </div>
+
+            <div className={styles.chipGrid}>
+              {itemTypeOptions.map((item) => {
+                const selected = form.itemType === item;
+
+                return (
+                  <button
+                    key={item}
+                    type="button"
+                    className={`${styles.chip} ${
+                      selected ? styles.chipActive : ""
+                    }`}
+                    onClick={() => updateForm("itemType", item)}
+                  >
+                    {item}
+                  </button>
+                );
+              })}
+            </div>
+
+            {itemTypeError && (
+              <p className={styles.fieldError}>请选择这件衣服属于什么类型。</p>
+            )}
+          </section>
+
+          <section className={`${styles.card} ${styles.optionalCard}`}>
             <button
               type="button"
-              onClick={handleSubmit}
-              className={styles.submitButton}
-              disabled={isSubmitting || !isFormComplete}
-        >
-          {isSubmitting
-            ? "正在看图判断，大约需要 15～25 秒..."
-            : isFormComplete
-            ? "快速生成判断"
-            : "请先上传图片并选择必填项"}
-        </button>
+              className={styles.optionalToggle}
+              onClick={() => setShowOptional((prev) => !prev)}
+            >
+              <span>补充更多信息</span>
+              <span className={styles.optionalAction}>
+                <em>{showOptional ? "已展开" : "可选 · 让判断更准"}</em>
+                <b>{showOptional ? "−" : "+"}</b>
+              </span>
+            </button>
 
-        <p>
-         {isSubmitting
-          ? "先别关闭页面，我正在分析版型、颜色和搭配空间。"
-          : "只填前三项也可以快速判断；补充越多，结果会越具体。"}
-        </p>
+            {showOptional && (
+  <div className={styles.optionalContent}>
+    <div className={styles.optionGroup}>
+      <div className={styles.optionGroupTitle}>
+        <strong>最纠结什么</strong>
+        <span>可选</span>
       </div>
+
+      <div className={styles.selectGrid}>
+        {concernOptions.map((option) => {
+          const selected = isMultiSelected(form.concern, option);
+
+          return (
+            <button
+              key={option}
+              type="button"
+              className={`${styles.selectChip} ${
+                selected ? styles.selectChipActive : ""
+              }`}
+              onClick={() => toggleMultiValue("concern", option)}
+            >
+              {option}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+
+    <div className={styles.optionGroup}>
+      <div className={styles.optionGroupTitle}>
+        <strong>穿上后的第一感受</strong>
+        <span>可选</span>
+      </div>
+
+      <div className={styles.selectGrid}>
+        {firstFeelingOptions.map((option) => {
+          const selected = form.firstFeeling === option;
+
+          return (
+            <button
+              key={option}
+              type="button"
+              className={`${styles.selectChip} ${
+                selected ? styles.selectChipActive : ""
+              }`}
+              onClick={() => selectSingleValue("firstFeeling", option)}
+            >
+              {option}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+
+    <div className={styles.optionGroup}>
+      <div className={styles.optionGroupTitle}>
+        <strong>衣橱里有没有类似单品</strong>
+        <span>可选</span>
+      </div>
+
+      <div className={styles.selectGrid}>
+        {similarItemsOptions.map((option) => {
+          const selected = form.similarItems === option;
+
+          return (
+            <button
+              key={option}
+              type="button"
+              className={`${styles.selectChip} ${
+                selected ? styles.selectChipActive : ""
+              }`}
+              onClick={() => selectSingleValue("similarItems", option)}
+            >
+              {option}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+
+    <div className={styles.optionGroup}>
+      <div className={styles.optionGroupTitle}>
+        <strong>可能使用场景</strong>
+        <span>可选 · 可多选</span>
+      </div>
+
+      <div className={styles.selectGrid}>
+        {occasionOptions.map((option) => {
+          const selected = isMultiSelected(form.occasion, option);
+
+          return (
+            <button
+              key={option}
+              type="button"
+              className={`${styles.selectChip} ${
+                selected ? styles.selectChipActive : ""
+              }`}
+              onClick={() => toggleMultiValue("occasion", option)}
+            >
+              {option}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+
+    <div className={styles.optionGroup}>
+      <div className={styles.optionGroupTitle}>
+        <strong>你对价格的感受</strong>
+        <span>可选</span>
+      </div>
+
+      <div className={styles.selectGrid}>
+        {priceFeelingOptions.map((option) => {
+          const selected = form.priceFeeling === option;
+
+          return (
+            <button
+              key={option}
+              type="button"
+              className={`${styles.selectChip} ${
+                selected ? styles.selectChipActive : ""
+              }`}
+              onClick={() => selectSingleValue("priceFeeling", option)}
+            >
+              {option}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+
+    <label className={styles.field}>
+      <span>补充说明</span>
+      <textarea
+        value={form.extraInfo}
+        onChange={(event) => updateForm("extraInfo", event.target.value)}
+        placeholder="比如：我担心它显胖 / 腰线不对 / 颜色不好搭 / 买回来可能很少穿"
+      />
+    </label>
+  </div>
+)}
+          </section>
+
+          {errorMessage && (
+            <div className={styles.errorBox}>
+              <strong>判断失败</strong>
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
+          <div className={styles.submitArea}>
+            <button
+              type="submit"
+              className={styles.submitButton}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "正在判断中..." : "开始判断"}
+            </button>
+
+            <p className={styles.submitHint}>
+              快速判断只需要上传图片、选择判断目的和单品类型。
+            </p>
+          </div>
         </form>
       </section>
     </main>
   );
 }
 
-function Step({
-  number,
-  label,
-  active = false,
-}: {
-  number: string;
-  label: string;
-  active?: boolean;
-}) {
+export default function DecisionHelperPage() {
   return (
-    <div className={active ? `${styles.step} ${styles.stepActive}` : styles.step}>
-      <span>{number}</span>
-      <strong>{label}</strong>
-    </div>
-  );
-}
-
-function OptionsField({
-  label,
-  options,
-  value,
-  onChange,
-  required = false,
-}: {
-  label: string;
-  options: string[];
-  value: string;
-  onChange: (v: string) => void;
-  required?: boolean;
-}) {
-  return (
-    <div className={styles.formSection}>
-      <div className={styles.label}>
-        {label}
-        {required ? <span>必选</span> : <span>可选</span>}
-      </div>
-
-      <div className={styles.optionGroup}>
-        {options.map((option) => {
-          const selected = value === option;
-
-          return (
-            <button
-              key={option}
-              type="button"
-              onClick={() => onChange(option)}
-              className={
-                selected
-                  ? `${styles.option} ${styles.optionSelected}`
-                  : styles.option
-              }
-            >
-              {option}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function MultiOptionsField({
-  label,
-  options,
-  values,
-  onChange,
-}: {
-  label: string;
-  options: string[];
-  values: string[];
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div className={styles.formSection}>
-      <div className={styles.label}>
-        {label}
-        <span>可选 · 可多选</span>
-      </div>
-
-      <div className={styles.optionGroup}>
-        {options.map((option) => {
-          const selected = values.includes(option);
-
-          return (
-            <button
-              key={option}
-              type="button"
-              onClick={() => onChange(option)}
-              className={
-                selected
-                  ? `${styles.option} ${styles.optionSelected}`
-                  : styles.option
-              }
-            >
-              {option}
-            </button>
-          );
-        })}
-      </div>
-    </div>
+    <Suspense fallback={null}>
+      <DecisionHelperContent />
+    </Suspense>
   );
 }
