@@ -79,8 +79,8 @@ function getIntentGuide(intent?: string) {
 headline 应该像一个搭配方向或风格结论，例如“适合走轻法式约会感”“适合做通勤里的温柔亮点”。
 finalNote 必须给出具体穿法建议，不要以“建议留下/建议放手”作为核心。
 stylingPlans 是最重要的部分，必须具体到上衣/下装/鞋包/颜色/避雷。
-keepReasons 应理解为“这件单品适合拿来搭配的优势”。
-riskReasons 应理解为“搭配时容易出错的地方”。
+keepReasons 应理解为“图片里这件单品本身适合拿来搭配的视觉优势”，必须来自颜色、版型、线条、材质、长度、细节，不要写衣橱重复度或场景覆盖。
+riskReasons 应理解为“图片里这件单品搭配时容易出错的视觉风险”，必须来自单品本身，不要只写用户表单里的担心。
 decision.label 只表示搭配可行度，不表示留不留：
 - 建议放手 = 不建议硬搭，单品本身限制很大
 - 再观察 = 需要明显调整才好搭
@@ -96,8 +96,8 @@ decision.label 只表示搭配可行度，不表示留不留：
 不要把主结论写成“今天穿合不合适”，也不要把主结论写成“留不留”。
 headline 应该是适配判断，例如“版型适合，但风格需要场景支撑”。
 finalNote 应围绕“适不适合你、什么条件下适合、怎么调整更适合”。
-keepReasons 应理解为“适合用户的地方”。
-riskReasons 应理解为“不适合或需要注意的地方”。
+keepReasons 应理解为“图片里这件单品本身适合用户的视觉证据”，必须具体到颜色、领口/门襟、肩线、袖长、衣长、腰线、面料、风格信号等。
+riskReasons 应理解为“图片里这件单品本身不适合或需要注意的视觉风险”，不能只写通勤、旅行、衣橱空白、搭配范围广这类表单结论。
 decision.label 只表示适配度：
 - 建议放手 = 不太适合
 - 再观察 = 需要再观察
@@ -112,8 +112,8 @@ decision.label 只表示适配度：
 需要重点考虑保留价值、闲置风险、重复度、价格感受、打理成本和使用场景。
 headline 应该直接给出留不留倾向，例如“有亮点，但闲置风险偏高”。
 finalNote 应给出明确保留/退掉/再观察建议。
-keepReasons 表示值得留下的理由。
-riskReasons 表示不留或退掉的风险理由。
+keepReasons 表示这件单品本身值得留下的视觉理由，必须来自图片可见的颜色、版型、比例、材质、细节或风格特征。
+riskReasons 表示这件单品本身不留或退掉的视觉风险，也可以补充表单风险，但不能只写表单风险。
 decision.label 表示留不留倾向：
 - 建议放手 = 更建议退掉/放手
 - 再观察 = 暂时不做决定
@@ -150,10 +150,10 @@ ${getIntentGuide(body.intent)}
 5. 如果图片主体清楚但用户选错类型，targetItemVisible 为 true，visibleMainItem 填图片主体，isTypeMatched 填 false。
 
 通用判断要求：
-1. 必须结合图片本身，不要只评价表单。
-2. 重点看颜色、版型、比例、长度、材质、褶皱、穿着门槛。
-3. 如果是上身图，可以评价肩线、腰线、视觉重心、显高显瘦。
-4. 如果图片信息有限，要直接说明，但不要拒绝判断。
+1. 必须优先分析图片里的衣服本身，再结合表单。不能把表单信息包装成单品本身判断。
+2. 图片观察必须具体：颜色冷暖/明暗/饱和度、领口/门襟、肩线、袖长、衣长、腰线、宽松度、面料垂感、褶皱、透感、装饰细节、风格信号。
+3. 如果是上身图，必须评价肩线、袖长、衣长、视觉重心、是否压身高、是否显肩宽/显壮/显拖沓。
+4. 如果图片信息有限，要说明“图片看不清某项”，但仍要基于看得见的部分判断。
 5. 不要为了安慰用户强行给高分或强行建议留下。
 6. ${lengthRule}
 7. 只输出合法 JSON，不要 markdown，不要解释，不要代码块。
@@ -174,6 +174,17 @@ ${getIntentGuide(body.intent)}
 22. stylingPlans 只返回 1 套最推荐方案。
 23. replacementAdvice 的 suggestions 最多返回 2 条。
 24. finalNote 不超过 45 个中文字符。
+
+图片本身判断强制要求：
+1. visualAnalysis 四个字段必须全部来自图片可见信息，不能写“适合通勤”“衣橱没有类似款”“覆盖场景广”“性价比高”等表单结论。
+2. visualAnalysis.color 必须说明颜色本身，例如偏暖/偏冷、明度、是否显旧、是否提气色、是否容易发黄或显脏。
+3. visualAnalysis.silhouette 必须说明版型本身，例如直筒、箱型、收腰、宽松、肩线、袖长、领口、门襟、下摆。
+4. visualAnalysis.proportion 必须说明比例效果，例如衣长到哪里、是否压身高、是否显腿长、腰线是否明确、视觉重心在哪里。
+5. visualAnalysis.fabricAndDetails 必须说明材质和细节，例如垂感、挺括度、褶皱、透感、厚薄、扣子、领型、口袋、纹理。
+6. keepReasons 的 title 和 detail 必须至少包含一个图片可见细节，不允许只写“通勤约会旅行一件覆盖”“衣橱里没有类似款”“补充空白”。
+7. riskReasons 的 title 和 detail 必须至少包含一个图片可见细节，不允许只写“需靠搭配出彩”“场景窄”“使用频率低”。
+8. 如果确实需要引用表单，请明确写成“表单因素”，不要伪装成衣服本身亮点。
+9. 禁止输出空泛词：百搭、实用、高级、有质感、显气质、好看。除非后面紧跟具体图片证据。
 
 严格返回这个 JSON 结构，字段名不能改：
 
@@ -197,10 +208,10 @@ ${getIntentGuide(body.intent)}
     "bestScenario": "最适合场景"
   },
   "visualAnalysis": {
-    "color": "颜色观察",
-    "silhouette": "版型轮廓观察",
-    "proportion": "比例效果观察",
-    "fabricAndDetails": "材质细节观察"
+    "color": "例如：米白偏暖，柔和提亮，但褶皱和发黄会更明显",
+    "silhouette": "例如：直筒微宽松衬衫版型，肩线自然但袖长略拖",
+    "proportion": "例如：衣长到胯部附近，不压身高但不强调腰线",
+    "fabricAndDetails": "例如：轻薄垂感面料，清爽但容易皱，门襟线条简洁"
   },
   "ratings": [
     {
@@ -468,20 +479,20 @@ export async function POST(request: Request) {
     }
 
     const firstContent = await callKimi(body, true);
-const firstResult = parseResult(firstContent);
+    const firstResult = parseResult(firstContent);
 
-if (firstResult) {
-  return NextResponse.json(firstResult);
-}
+    if (firstResult) {
+      return NextResponse.json(firstResult);
+    }
 
-console.warn("压缩模式 Kimi JSON 解析失败，开始使用标准模式重试。");
+    console.warn("压缩模式 Kimi JSON 解析失败，开始使用标准模式重试。");
 
-const secondContent = await callKimi(body, false);
-const secondResult = parseResult(secondContent);
+    const secondContent = await callKimi(body, false);
+    const secondResult = parseResult(secondContent);
 
-if (secondResult) {
-  return NextResponse.json(secondResult);
-}
+    if (secondResult) {
+      return NextResponse.json(secondResult);
+    }
 
     return NextResponse.json(
       { error: "Kimi 返回的判断结果不是有效 JSON。请重新生成一次。" },
