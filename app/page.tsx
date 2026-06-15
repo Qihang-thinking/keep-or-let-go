@@ -39,6 +39,20 @@ export default function Home() {
             <Link className="homeCta" href="/decision-helper?reset=1">
               开始判断一件衣服
             </Link>
+            <div className="homeQuickGuide">
+              <div>
+                <strong>适合上传</strong>
+                <span>试穿照、商品图、平铺图都可以，试穿照判断会更准。</span>
+              </div>
+              <div>
+                <strong>你会得到</strong>
+                <span>留不留建议、适合度判断、搭配方向和风险点。</span>
+              </div>
+              <div>
+                <strong>生成时间</strong>
+                <span>通常需要 15～25 秒，请不要关闭页面。</span>
+              </div>
+            </div>
             <p>只需要图片、判断目的和单品类型，也可以快速生成结果。</p>
           </div>
 

@@ -486,3 +486,36 @@ button {
     font-size: 30px;
   }
 }
+.homeQuickGuide {
+  display: grid;
+  gap: 10px;
+  max-width: 640px;
+  margin: 22px auto 0;
+}
+
+.homeQuickGuide div {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid rgba(128, 82, 95, 0.13);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: 0 10px 30px rgba(122, 76, 91, 0.06);
+}
+
+.homeQuickGuide strong {
+  font-size: 14px;
+  color: #5f3341;
+}
+
+.homeQuickGuide span {
+  font-size: 13px;
+  line-height: 1.65;
+  color: #7a6670;
+}
+
+@media (min-width: 760px) {
+  .homeQuickGuide {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
