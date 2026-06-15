@@ -303,17 +303,14 @@
   box-shadow: 0 10px 24px rgba(94, 60, 72, 0.06);
 }
 
-.optionCard strong {
-  display: block;
-  font-size: 14px;
-  line-height: 1.25;
-  font-weight: 760;
-}
-
-.optionCardActive {
+.optionCard.optionCardActive {
   border-color: #cf597d;
   background: #cf597d;
   box-shadow: 0 12px 26px rgba(207, 89, 125, 0.13);
+  color: white;
+}
+
+.optionCard.optionCardActive strong {
   color: white;
 }
 
@@ -345,7 +342,7 @@
   border-color: rgba(207, 89, 125, 0.48);
 }
 
-.chipActive {
+.chip.chipActive {
   background: #cf597d;
   border-color: #cf597d;
   color: white;
@@ -690,7 +687,7 @@
   border-color: rgba(207, 89, 125, 0.48);
 }
 
-.selectChipActive {
+.selectChip.selectChipActive {
   border-color: #cf597d;
   background: #cf597d;
   color: white;
