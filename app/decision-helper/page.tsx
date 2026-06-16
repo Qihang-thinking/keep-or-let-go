@@ -254,46 +254,59 @@ function isMultiSelected(value: string, option: string) {
   return splitMultiValue(value).includes(option);
 }
 
-async function fileToCompressedJpegDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
+const MAX_IMAGE_SIDE = 1280;
+const IMAGE_QUALITY = 0.78;
+
+function fileToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
 
-    reader.onload = () => {
-      const img = new Image();
-
-      img.onload = () => {
-        const maxSize = 1280;
-        const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
-        const width = Math.max(1, Math.round(img.width * scale));
-        const height = Math.max(1, Math.round(img.height * scale));
-
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          reject(new Error("无法处理图片，请换一张图片重试。"));
-          return;
-        }
-
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", 0.86));
-      };
-
-      img.onerror = () => {
-        reject(new Error("图片读取失败，请换一张 JPG 或 PNG 图片重试。"));
-      };
-
-      img.src = String(reader.result);
-    };
-
-    reader.onerror = () => {
-      reject(new Error("图片读取失败，请重新上传。"));
-    };
-
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error || new Error("图片读取失败，请重新上传。"));
     reader.readAsDataURL(file);
   });
+}
+
+async function compressImageFile(file: File): Promise<string> {
+  const originalDataUrl = await fileToDataUrl(file);
+
+  if (!file.type.startsWith("image/") || file.type === "image/gif") {
+    return originalDataUrl;
+  }
+
+  try {
+    const image = new Image();
+    image.src = originalDataUrl;
+
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error("图片压缩失败"));
+    });
+
+    const scale = Math.min(
+      1,
+      MAX_IMAGE_SIDE / Math.max(image.width, image.height)
+    );
+
+    if (scale >= 1 && file.size < 900 * 1024) {
+      return originalDataUrl;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.width * scale));
+    canvas.height = Math.max(1, Math.round(image.height * scale));
+
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      return originalDataUrl;
+    }
+
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", IMAGE_QUALITY);
+  } catch {
+    return originalDataUrl;
+  }
 }
   async function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -312,7 +325,7 @@ async function fileToCompressedJpegDataUrl(file: File): Promise<string> {
 
     try {
       setErrorMessage("");
-      const imageDataUrl = await fileToCompressedJpegDataUrl(file);
+      const imageDataUrl = await compressImageFile(file);
 
       const nextForm = clearOptionalFields({
         ...form,
