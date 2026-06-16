@@ -178,6 +178,35 @@ function DecisionHelperContent() {
       return next;
     });
   }
+
+  function clearOptionalFields(nextForm: FormState): FormState {
+    return {
+      ...nextForm,
+      concern: "",
+      firstFeeling: "",
+      similarItems: "",
+      occasion: "",
+      priceFeeling: "",
+      extraInfo: "",
+    };
+  }
+
+  function handleItemTypeSelect(item: string) {
+    setErrorMessage("");
+
+    setForm((prev) => {
+      const next = clearOptionalFields({
+        ...prev,
+        itemType: prev.itemType === item ? "" : item,
+      });
+
+      if (activeError) {
+        setActiveError(getFirstMissingField(next));
+      }
+
+      return next;
+    });
+  }
 function splitMultiValue(value: string) {
   return value
     .split("、")
@@ -189,15 +218,28 @@ function toggleMultiValue<K extends keyof FormState>(
   key: K,
   option: string
 ) {
-  const currentValue = String(form[key] || "");
-  const currentList = splitMultiValue(currentValue);
-  const exists = currentList.includes(option);
+  setErrorMessage("");
 
-  const nextList = exists
-    ? currentList.filter((item) => item !== option)
-    : [...currentList, option];
+  setForm((prev) => {
+    const currentValue = String(prev[key] || "");
+    const currentList = splitMultiValue(currentValue);
+    const exists = currentList.includes(option);
 
-  updateForm(key, nextList.join("、") as FormState[K]);
+    const nextList = exists
+      ? currentList.filter((item) => item !== option)
+      : [...currentList, option];
+
+    const next = {
+      ...prev,
+      [key]: nextList.join("、"),
+    };
+
+    if (activeError) {
+      setActiveError(getFirstMissingField(next));
+    }
+
+    return next;
+  });
 }
 
 function selectSingleValue<K extends keyof FormState>(
@@ -272,11 +314,11 @@ async function fileToCompressedJpegDataUrl(file: File): Promise<string> {
       setErrorMessage("");
       const imageDataUrl = await fileToCompressedJpegDataUrl(file);
 
-      const nextForm = {
+      const nextForm = clearOptionalFields({
         ...form,
         imageDataUrl,
         imageName: file.name,
-      };
+      });
 
       setForm(nextForm);
 
@@ -503,7 +545,7 @@ async function fileToCompressedJpegDataUrl(file: File): Promise<string> {
                     className={`${styles.chip} ${
                       selected ? styles.chipActive : ""
                     }`}
-                    onClick={() => updateForm("itemType", item)}
+                    onClick={() => handleItemTypeSelect(item)}
                   >
                     {item}
                   </button>
@@ -617,7 +659,7 @@ async function fileToCompressedJpegDataUrl(file: File): Promise<string> {
 
       <div className={styles.selectGrid}>
         {occasionOptions.map((option) => {
-          const selected = form.concern === option;
+          const selected = isMultiSelected(form.occasion, option);
 
           return (
             <button
@@ -626,7 +668,7 @@ async function fileToCompressedJpegDataUrl(file: File): Promise<string> {
               className={`${styles.selectChip} ${
                 selected ? styles.selectChipActive : ""
               }`}
-              onClick={() => selectSingleValue("concern", option)}
+              onClick={() => toggleMultiValue("occasion", option)}
             >
               {option}
             </button>

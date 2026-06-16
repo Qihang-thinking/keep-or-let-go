@@ -78,7 +78,8 @@ function getIntentGuide(intent?: string) {
 输出重点：直接回答“怎么搭更好看”，不要把主结论写成留不留、退不退、值得留下。
 headline 应该像一个搭配方向或风格结论，例如“适合走轻法式约会感”“适合做通勤里的温柔亮点”。
 finalNote 必须给出具体穿法建议，不要以“建议留下/建议放手”作为核心。
-stylingPlans 是最重要的部分，必须具体到上衣/下装/鞋包/颜色/避雷。
+stylingPlans 和 stylingFormula 是最重要的部分，必须具体到上衣/下装/鞋包/颜色/避雷。
+sharpReview.comment 要回答“这件单品怎么搭才成立”，不要回答“要不要留下”。
 keepReasons 应理解为“图片里这件单品本身适合拿来搭配的视觉优势”，必须来自颜色、版型、线条、材质、长度、细节，不要写衣橱重复度或场景覆盖。
 riskReasons 应理解为“图片里这件单品搭配时容易出错的视觉风险”，必须来自单品本身，不要只写用户表单里的担心。
 decision.label 只表示搭配可行度，不表示留不留：
@@ -96,6 +97,7 @@ decision.label 只表示搭配可行度，不表示留不留：
 不要把主结论写成“今天穿合不合适”，也不要把主结论写成“留不留”。
 headline 应该是适配判断，例如“版型适合，但风格需要场景支撑”。
 finalNote 应围绕“适不适合你、什么条件下适合、怎么调整更适合”。
+sharpReview.comment 要回答“它对用户本人是否加分”，不要回答“是否值得购买”。
 keepReasons 应理解为“图片里这件单品本身适合用户的视觉证据”，必须具体到颜色、领口/门襟、肩线、袖长、衣长、腰线、面料、风格信号等。
 riskReasons 应理解为“图片里这件单品本身不适合或需要注意的视觉风险”，不能只写通勤、旅行、衣橱空白、搭配范围广这类表单结论。
 decision.label 只表示适配度：
@@ -112,6 +114,7 @@ decision.label 只表示适配度：
 需要重点考虑保留价值、闲置风险、重复度、价格感受、打理成本和使用场景。
 headline 应该直接给出留不留倾向，例如“有亮点，但闲置风险偏高”。
 finalNote 应给出明确保留/退掉/再观察建议。
+sharpReview.comment 要回答“到底值不值得留”，必须有明确取舍。
 keepReasons 表示这件单品本身值得留下的视觉理由，必须来自图片可见的颜色、版型、比例、材质、细节或风格特征。
 riskReasons 表示这件单品本身不留或退掉的视觉风险，也可以补充表单风险，但不能只写表单风险。
 decision.label 表示留不留倾向：
@@ -124,8 +127,8 @@ decision.label 表示留不留倾向：
 
 function buildPrompt(body: RequestBody, compact = false) {
   const lengthRule = compact
-  ? "每个字符串字段不超过 28 个中文字符。只写短句，不写完整长段落。"
-  : "每个字符串字段不超过 45 个中文字符。不要写长段落。";
+    ? "每个字符串字段不超过 30 个中文字符。只写短句，不写完整长段落。"
+    : "每个字符串字段不超过 55 个中文字符。不要写长段落。";
 
   return `
 你是「留不留」中文衣橱决策助手。请根据用户上传的衣服图片和表单信息，完成一次“单件衣服判断”。
@@ -142,6 +145,33 @@ function buildPrompt(body: RequestBody, compact = false) {
 
 ${getIntentGuide(body.intent)}
 
+判断语气要求：
+1. 你不是礼貌客服，也不是泛泛夸人的穿搭博主。你是直接、准确、会指出问题的衣橱判断助手。
+2. 先下判断，再讲原因；不要绕弯，不要平均用力，不要为了安慰用户把普通单品说成高级。
+3. 评价要像真人试衣建议：一句话里要有明确取舍，例如“能留，但不是高分单品”“适合当功能外搭，不适合靠它提升质感”。
+4. 必须指出“这件单品最拖后腿的地方”，例如压身高、显旧、显廉价、显壮、软塌、土气、普通、难打理、和用户期待不匹配。
+5. sharpReview.comment 要像真人判断：不攻击用户，但要敢说真话。避免模板腔，不要写“适合一部分场景”这种泛泛表述。
+6. sharpReview.comment 推荐句式：
+   - “能留，但它的价值主要是实用，不是提升穿搭质感。”
+   - “不是丑，是不够利落；需要靠搭配把短板压下去。”
+   - “如果你要的是显贵/显精神，这件不够；如果只是功能外搭，可以留。”
+   - “它成立的前提是你愿意打理，并且确实缺这个类型。”
+7. sharpReview.score 是 0-10 的真实评分，可以有小数，例如 6.5；普通单品不要给 8 分以上。
+8. 评分标准：8.5 以上=强烈建议留；7-8.4=可以留但要会搭；6-6.9=有明显短板；6 以下=建议放手。
+9. 不要输出“适合大多数人”“日常百搭”“有一定搭配空间”“适合一部分场景”这种空话；必须用图片证据说明为什么。
+10. stylingFormula 必须像穿搭处方，具体到内搭、下装、鞋、包、配色和避雷。
+表达克制要求：
+1. 不要为了显得毒舌而夸大短板。普通可以说普通，加分有限可以说加分有限；不要轻易使用“廉价、土气、显旧”，除非图片证据非常明显。
+2. sharpReview.comment 要像真人试衣建议，不要像总结报告。优先使用“能留，但……”“不是……而是……”“如果你要的是……这件不够”这类句式。
+3. visualAnalysis、sharpReview、stylingPlans、stylingFormula 不能重复同一句话。每个模块承担不同作用：
+   - sharpReview：下判断；
+   - visualAnalysis：解释图片证据；
+   - stylingPlans：说明整体穿法；
+   - stylingFormula：拆成内搭、下装、鞋包、配色、避雷。
+4. headline 尽量使用自然中文，不要中英混杂，除非是用户常用或行业常见风格词。
+5. 搭配建议要像人话，不要写成“露肤打破沉闷、拉回利落感”这种模板表达。可以写“内搭要修身、露一点领口；下装和鞋包要更挺，别让整套都软。”
+6. 如果图片里的单品只是普通基础款，评价重点应是“是否值得占衣橱位置”和“怎么穿才不拖后腿”，不要强行拔高成风格亮点。
+
 图片一致性检查要求：
 1. 你必须先判断“用户选择的目标单品”在图片中是否可见，而不是判断画面里哪个单品最抢眼。
 2. 只要用户选择的目标单品在图片中能看见，就必须围绕该目标单品判断；即使图片里上衣、外套或人物更显眼，也不能自动改判其他单品。
@@ -150,7 +180,7 @@ ${getIntentGuide(body.intent)}
 5. 如果用户选择的是大类，例如“裤子”，图片里是短裤、裙裤、阔腿裤、牛仔裤、运动裤等，都应视为类型匹配或近似匹配，不要因为细分类不同而改判成上衣。
 6. 如果用户选择的是“外套”，图片里是衬衫式外套、薄开衫、罩衫、防晒衫等外穿层，可以视为外套类继续判断，不要过度纠正。
 7. visibleMainItem 应填写“本次实际判断的目标单品”，例如：裤子、短裤、半裙、外套、上衣、连衣裙、鞋子、包包。
-8. 如果目标单品可见但图片中另一个单品更抢眼，warning 可以写“图片中其他单品更显眼，但已按你选择的裤子继续判断”，不要改判其他单品。
+8. 如果目标单品可见但图片中另一个单品更显眼，warning 可以写“图片中其他单品更显眼，但已按你选择的裤子继续判断”，不要改判其他单品。
 9. 如果 targetItemVisible 为 false，仍然必须返回完整 JSON 结构，但其他判断字段可以简短说明“目标单品不可见，无法可靠判断”。
 
 通用判断要求：
@@ -161,23 +191,22 @@ ${getIntentGuide(body.intent)}
 5. 不要为了安慰用户强行给高分或强行建议留下。
 6. ${lengthRule}
 7. 只输出合法 JSON，不要 markdown，不要解释，不要代码块。
-8. score 只能是 1、2、3、4、5。
-9. 不要所有评分都给 5。
+8. ratings 里的 score 只能是 1、2、3、4、5。
+9. 不要所有 ratings 都给 5。
 10. 如果场景窄，实穿频率不应高于 3。
-11. 如果用户担心不好搭，搭配难度不应高于 3，除非图片显示非常百搭。
+11. 如果用户担心不好搭，搭配难度不应高于 3，除非图片显示非常容易搭。
 12. 如果衣橱里很多类似单品，衣橱补充不应高。
 13. 如果某些用户信息是“未填写”，不要抱怨信息不足；主要依据图片、判断目的和单品类型给出判断。
 14. 价格感受只作为用户心理负担和性价比感知的参考，不要直接判断商品真实定价是否合理。
 15. 如果价格感受是“有点贵”或“明显不值”，需要在闲置风险、保留价值或最终建议里体现。
 16. 如果价格感受是“不考虑价格”或“不记得价格”，不要过度讨论价格。
-17. 判断目的为“这件应该怎么搭”时，finalNote、headline、stylingPlans 都必须优先回答搭配，不要写成留不留建议。
-18. 判断目的为“这件适不适合我”时，finalNote、headline 必须优先回答适配度，不要写成退不退建议。
-19. ratings 最多返回 3 条，优先保留：版型比例、颜色适配、实穿/搭配相关。
-20. keepReasons 最多返回 1 条。
-21. riskReasons 最多返回 1 条。
-22. stylingPlans 只返回 1 套最推荐方案。
-23. replacementAdvice 的 suggestions 最多返回 2 条。
-24. finalNote 不超过 45 个中文字符。
+17. stylingPlans 只返回 1 套最推荐方案。
+18. finalNote 不超过 55 个中文字符。
+19. sharpReview.keepCondition 最多返回 2 条，每条必须是“什么情况下值得留”。
+20. sharpReview.dropReason 最多返回 2 条，每条必须是“什么情况下不值得留”。
+21. sharpReview.oneLineReason 必须解释“为什么是这个判断”，不能只复述 headline。
+22. sharpReview.biggestProblem 必须短而准，只写一个最大问题，不要并列三四个问题。
+23. 如果一件衣服只是普通、基础、能穿但不加分，要直接说“普通”“加分有限”“不是高分单品”。
 
 图片本身判断强制要求：
 1. visualAnalysis 四个字段必须全部来自图片可见信息，不能写“适合通勤”“衣橱没有类似款”“覆盖场景广”“性价比高”等表单结论。
@@ -189,6 +218,9 @@ ${getIntentGuide(body.intent)}
 7. riskReasons 的 title 和 detail 必须至少包含一个图片可见细节，不允许只写“需靠搭配出彩”“场景窄”“使用频率低”。
 8. 如果确实需要引用表单，请明确写成“表单因素”，不要伪装成衣服本身亮点。
 9. 禁止输出空泛词：百搭、实用、高级、有质感、显气质、好看。除非后面紧跟具体图片证据。
+10. sharpReview.biggestProblem 必须来自图片观察，不允许只写“场景少”“用户不确定”这种表单因素。
+11. sharpReview.biggestProblem 要聚焦一个最主要短板，例如“袖长盖手背，视觉重心下移”，不要写成“颜色、版型、材质都一般”。
+12. sharpReview.oneLineReason 必须包含一个图片证据，例如颜色、肩线、袖长、衣长、腰线、面料、褶皱、垂感、领口、门襟、鞋包比例。
 
 严格返回这个 JSON 结构，字段名不能改：
 
@@ -204,6 +236,28 @@ ${getIntentGuide(body.intent)}
     "label": "建议放手",
     "headline": "一句明确判断",
     "reason": "简短解释"
+  },
+  "sharpReview": {
+    "score": 6.5,
+    "comment": "能留，但它的价值主要是实用，不是提升穿搭质感。",
+    "oneLineReason": "因为颜色和版型基础可用，但图片里最明显的短板会影响利落感。",
+    "biggestProblem": "只写一个最大短板，例如：袖长盖手背，视觉重心下移",
+    "keepCondition": [
+      "什么情况下可以留",
+      "第二个保留前提"
+    ],
+    "dropReason": [
+      "什么情况下应该放弃",
+      "第二个放弃理由"
+    ]
+  },
+  "stylingFormula": {
+    "inner": "具体内搭，例如：修身背心 / 短款T恤 / 细肩带内搭",
+    "bottom": "具体下装，例如：高腰直筒牛仔裤 / 黑色短裙 / 利落西裤",
+    "shoes": "具体鞋子，例如：乐福鞋 / 德训鞋 / 薄底凉鞋",
+    "bag": "具体包包，例如：小号腋下包 / 硬挺托特 / 帆布包",
+    "color": "具体配色，例如：米白+深蓝+棕色，不要只写同色系",
+    "avoid": "具体避雷，例如：不要配同样软塌的宽松裤"
   },
   "uiSummary": {
     "retentionValue": "中",
@@ -232,23 +286,9 @@ ${getIntentGuide(body.intent)}
       "label": "搭配难度",
       "score": 3,
       "note": "评分理由"
-    },
-    {
-      "label": "实穿频率",
-      "score": 2,
-      "note": "评分理由"
-    },
-    {
-      "label": "衣橱补充",
-      "score": 4,
-      "note": "评分理由"
     }
   ],
   "keepReasons": [
-    {
-      "title": "理由标题",
-      "detail": "具体理由"
-    },
     {
       "title": "理由标题",
       "detail": "具体理由"
@@ -266,15 +306,7 @@ ${getIntentGuide(body.intent)}
   ],
   "stylingPlans": [
     {
-      "scenario": "场景一",
-      "outfit": "具体穿搭",
-      "shoesAndBag": "鞋包方向",
-      "colorDirection": "颜色方向",
-      "avoid": "避免什么",
-      "whyItWorks": "为什么有效"
-    },
-    {
-      "scenario": "场景二",
+      "scenario": "最推荐场景",
       "outfit": "具体穿搭",
       "shoesAndBag": "鞋包方向",
       "colorDirection": "颜色方向",
@@ -286,8 +318,7 @@ ${getIntentGuide(body.intent)}
     "title": "替代购买方向",
     "suggestions": [
       "具体建议一",
-      "具体建议二",
-      "具体建议三"
+      "具体建议二"
     ]
   },
   "finalNote": "最后简短建议"
@@ -298,6 +329,10 @@ imageCheck.selectedItemType 必须等于用户选择的单品类型。
 imageCheck.isTypeMatched 和 imageCheck.targetItemVisible 必须是布尔值 true 或 false。
 label 必须从这四个里选一个：建议放手、再观察、有条件留下、值得留下。
 retentionValue、idleRisk、stylingDifficulty 必须从这三个里选一个：低、中、高。
+sharpReview.score 必须是 0 到 10 的数字，可以有一位小数。
+sharpReview.comment 必须直接、有判断，不要写成温和总结，也不要写“适合一部分场景”这种泛句。
+sharpReview.oneLineReason、sharpReview.biggestProblem、sharpReview.keepCondition、sharpReview.dropReason 不能互相重复。
+stylingFormula 六个字段都必须填写，不能空字符串；每个字段都要具体到可执行单品，不要只写抽象原则。
 `;
 }
 
@@ -308,14 +343,11 @@ function isObject(value: unknown): value is Record<string, unknown> {
 function hasValidResultShape(value: unknown) {
   if (!isObject(value)) return false;
 
-  return (
+    return (
     isObject(value.imageCheck) &&
     isObject(value.decision) &&
     isObject(value.uiSummary) &&
     isObject(value.visualAnalysis) &&
-    Array.isArray(value.ratings) &&
-    Array.isArray(value.keepReasons) &&
-    Array.isArray(value.riskReasons) &&
     Array.isArray(value.stylingPlans) &&
     isObject(value.replacementAdvice) &&
     typeof value.finalNote === "string"
@@ -387,7 +419,7 @@ async function callKimi(body: RequestBody, compact = false) {
         },
       ],
       temperature: 0.6,
-      max_tokens: compact ? 900 : 1600,
+      max_tokens: compact ? 1400 : 1700,
     }),
   });
 
@@ -442,9 +474,7 @@ function tryParseAndValidate(jsonText: string) {
 
 function repairCommonJsonIssues(jsonText: string) {
   return jsonText
-    // 常见错误：replacementAdvice 结束后多输出一个 }，导致 finalNote 跑到根对象外面
     .replace(/(\}\s*)\}\s*,\s*"finalNote"/, '$1,\n  "finalNote"')
-    // 常见错误：末尾多了一个逗号
     .replace(/,\s*}/g, "}")
     .replace(/,\s*]/g, "]");
 }
@@ -466,7 +496,7 @@ function parseResult(content: string) {
     return repairedResult;
   }
 
-  console.error("Kimi content is not valid JSON:", content);
+  console.error("Kimi content is not valid JSON. Preview:", content.slice(0, 600));
   return null;
 }
 
@@ -482,20 +512,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const firstContent = await callKimi(body, true);
-    const firstResult = parseResult(firstContent);
+    const content = await callKimi(body, true);
+    const result = parseResult(content);
 
-    if (firstResult) {
-      return NextResponse.json(firstResult);
-    }
-
-    console.warn("压缩模式 Kimi JSON 解析失败，开始使用标准模式重试。");
-
-    const secondContent = await callKimi(body, false);
-    const secondResult = parseResult(secondContent);
-
-    if (secondResult) {
-      return NextResponse.json(secondResult);
+    if (result) {
+      return NextResponse.json(result);
     }
 
     return NextResponse.json(
