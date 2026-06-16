@@ -254,8 +254,8 @@ function isMultiSelected(value: string, option: string) {
   return splitMultiValue(value).includes(option);
 }
 
-const MAX_IMAGE_SIDE = 1280;
-const IMAGE_QUALITY = 0.78;
+const MAX_IMAGE_SIDE = 1024;
+const IMAGE_QUALITY = 0.68;
 
 function fileToDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
@@ -288,7 +288,7 @@ async function compressImageFile(file: File): Promise<string> {
       MAX_IMAGE_SIDE / Math.max(image.width, image.height)
     );
 
-    if (scale >= 1 && file.size < 900 * 1024) {
+    if (scale >= 1 && file.size < 450 * 1024) {
       return originalDataUrl;
     }
 

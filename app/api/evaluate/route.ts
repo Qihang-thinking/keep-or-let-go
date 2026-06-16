@@ -364,7 +364,7 @@ async function callKimi(body: RequestBody, compact = false) {
         },
       ],
       temperature: 0.6,
-      max_tokens: compact ? 1050 : 1400,
+      max_tokens: compact ? 900 : 1200,
     }),
   });
 
