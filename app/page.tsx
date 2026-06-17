@@ -13,9 +13,9 @@ export default function Home() {
         <section className="homeHero">
           <p className="homeEyebrow">KEEP OR LET GO</p>
           <h1>
-            这件衣服，
+            别再为了一件衣服
             <br />
-            到底要不要留？
+            <span>反复纠结</span>
           </h1>
           <p>
             上传试穿照或单品图，从版型、比例、搭配空间与保留价值，为你写一份属于自己的 FIT REVIEW。
