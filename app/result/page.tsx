@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { CSSProperties, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./page.module.css";
 
@@ -363,10 +363,71 @@ function normalizeDecisionLabel(label: string): DecisionLabel {
 }
 
 function getDecisionPosition(label: DecisionLabel) {
-  if (label === "建议放手") return "15%";
-  if (label === "再观察") return "45%";
-  if (label === "有条件留下") return "68%";
-  return "88%";
+  if (label === "建议放手") return "18%";
+  if (label === "再观察") return "52%";
+  if (label === "有条件留下") return "74%";
+  return "90%";
+}
+
+function getReportNumber() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `No.${month}${day}`;
+}
+
+function getVerdictWord(label: DecisionLabel, intent?: string) {
+  if (intent?.includes("怎么搭")) {
+    if (label === "建议放手") return "难搭";
+    if (label === "再观察") return "调整";
+    if (label === "有条件留下") return "可搭";
+    return "好搭";
+  }
+
+  if (intent?.includes("适不适合")) {
+    if (label === "建议放手") return "不合";
+    if (label === "再观察") return "观察";
+    if (label === "有条件留下") return "适合";
+    return "很合";
+  }
+
+  if (label === "建议放手") return "放手";
+  if (label === "再观察") return "观察";
+  if (label === "有条件留下") return "有条件留";
+  return "留下";
+}
+
+function getScorePercent(score: number) {
+  return Math.max(0, Math.min(100, Math.round(score * 10)));
+}
+
+function getScoreOutOf100(score: number) {
+  return Math.max(0, Math.min(100, Math.round(score * 10)));
+}
+
+function getItemTags(formData: FormData, result: EvaluationResult) {
+  const visibleItem = result.imageCheck?.visibleMainItem;
+  const tags = [
+    visibleItem && visibleItem !== "看不清" ? visibleItem : formData.itemType,
+    formData.intent || formData.purpose,
+    result.uiSummary.bestScenario,
+    formData.concern,
+  ]
+    .filter(Boolean)
+    .map((item) => String(item).trim())
+    .filter((item, index, arr) => item && arr.indexOf(item) === index)
+    .slice(0, 4);
+
+  return tags.length ? tags : [formData.itemType];
+}
+
+function getAccessoryText(result: EvaluationResult, primaryPlan?: StylingPlan) {
+  return (
+    result.stylingFormula?.avoid ||
+    primaryPlan?.avoid ||
+    primaryPlan?.shoesAndBag ||
+    "小体量配饰即可，避免抢走单品重点。"
+  );
 }
 
 function getSpectrumTone(label: DecisionLabel, intent?: string) {
@@ -712,19 +773,21 @@ export default function Result() {
   }
 
   const decisionLabel = normalizeDecisionLabel(result.decision.label);
-  const resultCopy = getIntentCopy(formData.intent);
   const primaryPlan = result.stylingPlans[0];
   const morePlans = result.stylingPlans.slice(1);
-    const heroDecisionLabel = getHeroDecisionLabel(decisionLabel, formData.intent, primaryPlan);
-  const heroDescription = getHeroDescription(result, formData.intent, primaryPlan);
   const evidenceItems = getEvidenceItems(result, formData.intent, primaryPlan);
   const imageCheckWarning = getImageCheckWarning(result);
   const sharpScore = getSharpScore(result, decisionLabel);
+  const scorePercent = getScorePercent(sharpScore);
+  const scoreOutOf100 = getScoreOutOf100(sharpScore);
   const sharpComment = getSharpComment(result, decisionLabel, formData.intent);
   const sharpReason = getOneLineReason(result);
   const biggestProblem = getBiggestProblem(result);
   const keepConditions = getKeepConditions(result, primaryPlan);
   const dropReasons = getDropReasons(result);
+  const reportNumber = getReportNumber();
+  const itemTags = getItemTags(formData, result);
+  const accessoryText = getAccessoryText(result, primaryPlan);
 
 
 
@@ -787,221 +850,270 @@ export default function Result() {
   return (
     <div className={styles.page}>
       <main className={styles.main}>
-        <section className={styles.decisionCard}>
-          <div className={styles.decisionTopline}>
-            <span>{resultCopy.heroEyebrow}</span>
-            <strong>
-              {formData.itemType} · {resultCopy.pageTitle}
-            </strong>
+        <header className={styles.reportHeader}>
+          <div>
+            <span>留不留</span>
+            <em>|</em>
+            <span>FIT REVIEW</span>
+          </div>
+          <strong>{reportNumber}</strong>
+        </header>
+
+        <section className={styles.editorialVerdictCard}>
+          <div className={styles.verdictAccentLine} />
+
+          <div className={styles.verdictTopline}>
+            <span>THE VERDICT</span>
+            <strong>{getDisplayDecisionLabel(decisionLabel, formData.intent)}</strong>
           </div>
 
-              <div className={styles.decisionHero}>
+          <div className={styles.verdictBody}>
+            <h1>{getVerdictWord(decisionLabel, formData.intent)}</h1>
+            <p>{sharpComment}</p>
+          </div>
+
+          <div className={styles.verdictReasonBox}>
+            <span>判断依据</span>
+            <p>{sharpReason}</p>
+          </div>
+
+          <div className={styles.verdictMetaGrid}>
             <div>
-              <h1>{heroDecisionLabel}</h1>
-              <p>{heroDescription}</p>
+              <span>最影响判断</span>
+              <strong>{biggestProblem}</strong>
             </div>
-
-            <div className={styles.sharpScoreBox}>
-  <div className={styles.scoreHeaderLine}>
-    <span>真实评分</span>
-    <strong>
-      {formatSharpScore(sharpScore)}
-      <em>/ 10</em>
-    </strong>
-  </div>
-
-  <div className={styles.scoreSpectrumWrap}>
-  <div
-    className={styles.scoreSpectrum}
-    style={
-      {
-        "--score-percent": `${Math.max(0, Math.min(10, sharpScore)) * 10}%`,
-      } as React.CSSProperties
-    }
-    aria-hidden="true"
-  >
-    <div
-      className={styles.scoreSpectrumMarker}
-      style={{ left: `${Math.max(0, Math.min(10, sharpScore)) * 10}%` }}
-    />
-  </div>
-
-  <div className={styles.scoreSpectrumLabels}>
-    <span>放手</span>
-    <span>观察</span>
-    <span>可留</span>
-    <span>高分</span>
-  </div>
-</div>
-</div>
-          </div>
-
-                    <div className={styles.sharpVerdictBox}>
-            <span>真实判断</span>
-            <strong>{sharpComment}</strong>
-
-            <div className={styles.sharpVerdictPoints}>
-              <p>
-                <em>为什么：</em>
-                {sharpReason}
-              </p>
-              <p>
-                <em>短板：</em>
-                {biggestProblem}
-              </p>
-            </div>
-          </div>
-
-                    <div className={styles.conditionGrid}>
-            <div className={styles.conditionBlock}>
-              <span>可以留的前提</span>
-              <ul>
-                {keepConditions.map((item, index) => (
-                  <li key={index}>{item}</li>
-                ))}
-              </ul>
-            </div>
-
-            <div className={styles.conditionBlock}>
-              <span>不该留的理由</span>
-              <ul>
-                {dropReasons.map((item, index) => (
-                  <li key={index}>{item}</li>
-                ))}
-              </ul>
+            <div>
+              <span>{getScenarioLabel(formData.intent)}</span>
+              <strong>{result.uiSummary.bestScenario}</strong>
             </div>
           </div>
         </section>
 
-        <section className={styles.evidenceCard}>
-          <div className={styles.evidenceImageWrap}>
+        <section className={styles.scoreReviewCard}>
+          <div className={styles.sectionEyebrowRow}>
+            <span>契合度评分</span>
+            <strong className={styles.scoreNumber}>
+  <span>{scoreOutOf100}</span>
+  <em>/100</em>
+</strong>
+          </div>
+
+          <div className={styles.editorialSpectrumWrap}>
+            <div
+              className={styles.editorialSpectrumTrack}
+              style={{ "--score-percent": `${scorePercent}%` } as CSSProperties}
+              aria-hidden="true"
+            >
+              <div
+                className={styles.editorialSpectrumMarker}
+                style={{ left: `${scorePercent}%` }}
+              />
+            </div>
+
+            <div className={styles.editorialSpectrumLabels}>
+              <span>舍弃 0–40</span>
+              <span>斟酌 40–70</span>
+              <span>保留 70–100</span>
+            </div>
+          </div>
+
+          <p className={styles.scoreCaption}>{getSpectrumTone(decisionLabel, formData.intent)}</p>
+        </section>
+
+        <section className={styles.uploadEvidenceCard}>
+          <div className={styles.uploadEvidenceHeader}>
+            <div>
+              <span>上传的单品</span>
+              <strong>已分析</strong>
+            </div>
+            <em>{formData.itemType}</em>
+          </div>
+
+          <div className={styles.uploadImageFrame}>
             {formData.imageDataUrl ? (
               <img
                 src={formData.imageDataUrl}
                 alt={formData.imageName || "上传的衣服图片"}
-                className={styles.evidenceImage}
+                className={styles.uploadEvidenceImage}
               />
             ) : (
               <div className={styles.noImageState}>没有读取到图片预览</div>
             )}
-          </div>
 
-          <div className={styles.evidenceContent}>
-            <div className={styles.evidenceMeta}>
-  <h3>{resultCopy.evidenceTitle}</h3>
-  <p>基于图片里的版型、比例、颜色和材质</p>
-  <span>{formData.itemType}</span>
-</div>
-
-            <div className={styles.evidenceList}>
-              {evidenceItems.map((item) => (
-                <div key={item.title} className={styles.evidenceItem}>
-                  <span>{item.title}</span>
-                  <p>{item.detail}</p>
-                </div>
-              ))}
+            <div className={styles.imageOverlayPill}>
+              {result.imageCheck?.visibleMainItem || formData.itemType}
             </div>
-
-            {imageCheckWarning && (
-              <div className={styles.warningBox}>
-                <span>图片校正提示</span>
-                <p>{imageCheckWarning}</p>
-              </div>
-            )}
           </div>
+
+          <div className={styles.itemTagRow}>
+            {itemTags.map((tag) => (
+              <span key={tag}>{tag}</span>
+            ))}
+          </div>
+
+          {imageCheckWarning && (
+            <div className={styles.warningBox}>
+              <span>图片校正提示</span>
+              <p>{imageCheckWarning}</p>
+            </div>
+          )}
         </section>
 
         {primaryPlan && (
-          <section className={styles.analysisSection}>
-            <div className={`${styles.analysisCard} ${styles.primaryStylingCard}`}>
-              <div className={styles.sectionTitleRow}>
-                <h3 className={styles.analysisTitle}>怎么搭配</h3>
-              </div>
+          <section className={styles.stylingRxCard}>
+            <div className={styles.rxHeader}>
+              <span>造型处方</span>
+              <strong>STYLING RX</strong>
+            </div>
 
-              {primaryPlan.whyItWorks && (
-                <p className={styles.stylingHighlight}>{primaryPlan.whyItWorks}</p>
-              )}
+            {primaryPlan.whyItWorks && (
+              <p className={styles.rxIntro}>{primaryPlan.whyItWorks}</p>
+            )}
 
-                            <div className={styles.stylingGrid}>
+            <div className={styles.rxList}>
+              <div className={styles.rxItem}>
+                <em>01</em>
                 <div>
                   <span>内搭</span>
                   <strong>{getFormulaValue(result, "inner", primaryPlan.outfit)}</strong>
                 </div>
+              </div>
 
+              <div className={styles.rxItem}>
+                <em>02</em>
                 <div>
                   <span>下装</span>
                   <strong>{getFormulaValue(result, "bottom", primaryPlan.outfit)}</strong>
                 </div>
+              </div>
 
+              <div className={styles.rxItem}>
+                <em>03</em>
                 <div>
-                  <span>鞋子</span>
-                  <strong>{getFormulaValue(result, "shoes", primaryPlan.shoesAndBag)}</strong>
-                </div>
-
-                <div>
-                  <span>包包</span>
-                  <strong>{getFormulaValue(result, "bag", primaryPlan.shoesAndBag)}</strong>
-                </div>
-
-                <div>
-                  <span>配色</span>
-                  <strong>{getFormulaValue(result, "color", primaryPlan.colorDirection)}</strong>
-                </div>
-
-                <div className={styles.avoidItem}>
-                  <span>避雷</span>
-                  <strong>{getFormulaValue(result, "avoid", primaryPlan.avoid)}</strong>
+                  <span>鞋包</span>
+                  <strong>
+                    {getFormulaValue(result, "shoes", primaryPlan.shoesAndBag)} + {getFormulaValue(result, "bag", primaryPlan.shoesAndBag)}
+                  </strong>
                 </div>
               </div>
 
-              {morePlans.length > 0 && (
-                <details className={styles.inlineDetails}>
-                  <summary>查看其他搭配方案</summary>
-                  <div className={styles.miniPlanList}>
-                    {morePlans.map((plan, index) => (
-                      <div key={index}>
-                        <strong>{plan.scenario}</strong>
-                        <p>{plan.outfit}</p>
-                        <span>
-                          鞋包：{plan.shoesAndBag}；颜色：{plan.colorDirection}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              )}
+              <div className={styles.rxItem}>
+                <em>04</em>
+                <div>
+                  <span>配饰 / 避雷</span>
+                  <strong>{accessoryText}</strong>
+                </div>
+              </div>
             </div>
+
+            <div className={styles.rxColorNote}>
+              <span>配色方向</span>
+              <p>{getFormulaValue(result, "color", primaryPlan.colorDirection)}</p>
+            </div>
+
+            {morePlans.length > 0 && (
+              <details className={styles.inlineDetails}>
+                <summary>查看其他搭配方案</summary>
+                <div className={styles.miniPlanList}>
+                  {morePlans.map((plan, index) => (
+                    <div key={index}>
+                      <strong>{plan.scenario}</strong>
+                      <p>{plan.outfit}</p>
+                      <span>
+                        鞋包：{plan.shoesAndBag}；颜色：{plan.colorDirection}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
           </section>
         )}
 
-        <section className={styles.detailSection}>
-          <div className={styles.detailHeader}>
-            <h3>替代方向</h3>
+        <section className={styles.breakdownCard}>
+          <div className={styles.breakdownHeader}>
+            <span>详细分析</span>
+            <strong>BREAKDOWN</strong>
           </div>
 
-          <div className={styles.compactReasonGroup}>
-            <h4>{result.replacementAdvice.title}</h4>
-            <ul className={styles.analysisList}>
-              {result.replacementAdvice.suggestions.map((suggestion, index) => (
-                <li key={index}>{suggestion}</li>
-              ))}
-            </ul>
+          <div className={styles.breakdownList}>
+            <details className={styles.breakdownItem} open>
+              <summary>
+                <span>版型与廓形</span>
+                <em>+</em>
+              </summary>
+              <p>{result.visualAnalysis?.silhouette || evidenceItems[1]?.detail}</p>
+            </details>
+
+            <details className={styles.breakdownItem}>
+              <summary>
+                <span>色彩适配</span>
+                <em>+</em>
+              </summary>
+              <p>{result.visualAnalysis?.color || evidenceItems[0]?.detail}</p>
+            </details>
+
+            <details className={styles.breakdownItem}>
+              <summary>
+                <span>比例与材质</span>
+                <em>+</em>
+              </summary>
+              <p>
+                {[result.visualAnalysis?.proportion, result.visualAnalysis?.fabricAndDetails]
+                  .filter(Boolean)
+                  .join("；") || evidenceItems[2]?.detail}
+              </p>
+            </details>
+
+            <details className={styles.breakdownItem}>
+              <summary>
+                <span>保留 / 放手条件</span>
+                <em>+</em>
+              </summary>
+              <div className={styles.breakdownConditionGrid}>
+                <div>
+                  <strong>可以留</strong>
+                  <ul>
+                    {keepConditions.map((item, index) => (
+                      <li key={index}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <strong>不建议留</strong>
+                  <ul>
+                    {dropReasons.map((item, index) => (
+                      <li key={index}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </details>
+
+            <details className={styles.breakdownItem}>
+              <summary>
+                <span>替代购买方向</span>
+                <em>+</em>
+              </summary>
+              <div className={styles.replacementList}>
+                <strong>{result.replacementAdvice.title}</strong>
+                <ul>
+                  {result.replacementAdvice.suggestions.map((suggestion, index) => (
+                    <li key={index}>{suggestion}</li>
+                  ))}
+                </ul>
+              </div>
+            </details>
           </div>
         </section>
 
         <section className={styles.feedbackCard}>
-          <h3>这个判断对你有帮助吗？</h3>
+          <h3>这次评估对你有帮助吗？</h3>
 
           <div className={styles.feedbackButtons}>
-            <button type="button" onClick={() => handleFeedback("有帮助")}>
-              有帮助！
-            </button>
-            <button type="button" onClick={() => handleFeedback("还是很纠结")}>
-              还是很纠结
-            </button>
-            <button type="button" onClick={() => handleFeedback("没帮助")}>
-              根本没帮助
-            </button>
+            <button type="button" onClick={() => handleFeedback("有帮助")}>有帮助</button>
+            <button type="button" onClick={() => handleFeedback("再想想")}>再想想</button>
+            <button type="button" onClick={() => handleFeedback("没帮助")}>没帮助</button>
           </div>
 
           {feedback && <p className={styles.feedbackNote}>已记录：{feedback}。</p>}
@@ -1014,7 +1126,7 @@ export default function Result() {
           <button className={styles.secondaryButton} onClick={handleEditForm}>
             修改表单重新判断
           </button>
-          <button className={styles.secondaryButton} onClick={() => router.push("/")}>
+          <button className={styles.secondaryButton} onClick={() => router.push("/") }>
             返回首页
           </button>
         </div>
