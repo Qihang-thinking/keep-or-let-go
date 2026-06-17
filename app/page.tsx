@@ -3,43 +3,55 @@ import Link from "next/link";
 export default function Home() {
   return (
     <main className="homePage">
-      <div className="homePattern" />
-
-      <section className="heroPanel">
-        <div className="heroBadge">留不留 · Keep or Let Go</div>
-
-        <h1 className="heroTitle">
-          别再对着
-          <br />
-          一件衣服纠结
-        </h1>
-
-        <p className="heroText">
-          上传一张试穿照或衣服图。AI 会帮你判断它适不适合、值不值得留，
-          以及可以怎么搭。
-        </p>
-
-        <Link className="heroButton" href="/decision-helper?reset=1">
-          开始判断一件衣服
-        </Link>
-
-        <div className="heroTags">
+      <section className="homeCover">
+        <header className="homeMasthead">
           <span>留不留</span>
-          <span>适合度</span>
-          <span>怎么搭</span>
-        </div>
+          <em>|</em>
+          <strong>PERSONAL FIT REVIEW</strong>
+        </header>
 
-        <div className="heroFlow">
-          <span>上传图片</span>
-          <i />
-          <span>选择问题</span>
-          <i />
-          <span>得到建议</span>
-        </div>
+        <section className="homeHero">
+          <p className="homeEyebrow">KEEP OR LET GO</p>
+          <h1>
+            这件衣服，
+            <br />
+            到底要不要留？
+          </h1>
+          <p>
+            上传试穿照或单品图，从版型、比例、搭配空间与保留价值，为你写一份属于自己的 FIT REVIEW。
+          </p>
+          <Link className="homeCta" href="/decision-helper?reset=1">
+            <span>开始判断一件衣服</span>
+            <em>→</em>
+          </Link>
+        </section>
 
-        <p className="heroNote">
-          它不替你做决定，只帮你看清：适不适合、值不值得留，以及能不能搭好。
-        </p>
+        <section className="homeEditorialPanel" aria-label="判断维度">
+          <div className="homeIssueRow">
+            <span>No.0617</span>
+            <span>WARDROBE EDIT</span>
+          </div>
+
+          <div className="homeKeywordStack">
+            <div>
+              <em>01</em>
+              <strong>FIT</strong>
+              <span>适不适合</span>
+            </div>
+            <div>
+              <em>02</em>
+              <strong>KEEP</strong>
+              <span>值不值得留</span>
+            </div>
+            <div>
+              <em>03</em>
+              <strong>STYLE</strong>
+              <span>能不能搭好</span>
+            </div>
+          </div>
+        </section>
+
+        <p className="homeFooterLine">UPLOAD · REVIEW · DECIDE</p>
       </section>
     </main>
   );
