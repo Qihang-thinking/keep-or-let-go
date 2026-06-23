@@ -1,9 +1,8 @@
 "use client";
 
-import { CSSProperties, useEffect, useRef, useState } from "react";
+import { CSSProperties, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toPng } from "html-to-image";
-import ShareCardExport from "./ShareCardExport";
+import generateShareImage from "./generateShareImage";
 import styles from "./page.module.css";
 
 type DecisionLabel = "建议放手" | "再观察" | "有条件留下" | "值得留下";
@@ -777,7 +776,6 @@ export default function Result() {
   const [isGeneratingShare, setIsGeneratingShare] = useState(false);
   const [shareError, setShareError] = useState("");
   const [generatedShareImage, setGeneratedShareImage] = useState("");
-  const shareCardRef = useRef<HTMLDivElement | null>(null);
 
   const handleFeedback = (value: string) => {
     setFeedback(value);
@@ -796,9 +794,30 @@ export default function Result() {
     router.push("/decision-helper");
   };
 
-  const handleShare = () => {
+  const handleShare = async () => {
+    if (!formData || !result) return;
     setShareError("");
+    setGeneratedShareImage("");
     setShowShareModal(true);
+    setIsGeneratingShare(true);
+
+    try {
+      const dataUrl = await generateShareImage({
+        verdictWord: getVerdictWord(decisionLabel, formData.intent),
+        scoreText: formatScore10(sharpScore),
+        scoreTitle: getScoreTitle(formData.intent),
+        summary: sharpComment,
+        scene: result.uiSummary.bestScenario,
+        imageDataUrl: formData.imageDataUrl,
+        rxItems: shareRxItems,
+        colorDir: shareColorDir,
+      });
+      setGeneratedShareImage(dataUrl);
+    } catch {
+      setShareError("分享图生成失败，请稍后再试。");
+    } finally {
+      setIsGeneratingShare(false);
+    }
   };
 
   const handleCloseModal = () => {
@@ -808,21 +827,10 @@ export default function Result() {
   };
 
   const handleDownloadShare = async () => {
-    setShareError("");
-    setGeneratedShareImage("");
-    setIsGeneratingShare(true);
+    if (!generatedShareImage) return;
 
     try {
-      const node = shareCardRef.current;
-      if (!node) throw new Error("export node not found");
-
-      const dataUrl = await toPng(node, {
-        pixelRatio: 2,
-        cacheBust: true,
-        backgroundColor: "#fbf7f3",
-      });
-
-      const blob = await (await fetch(dataUrl)).blob();
+      const blob = await (await fetch(generatedShareImage)).blob();
       const file = new File([blob], "liubuliu-fit-review.png", { type: "image/png" });
 
       if (navigator.canShare?.({ files: [file] })) {
@@ -832,23 +840,19 @@ export default function Result() {
             title: "留不留｜FIT REVIEW",
             text: "我的衣服判断结果",
           });
-        } catch {
-          setGeneratedShareImage(dataUrl);
-        }
-      } else {
-        setGeneratedShareImage(dataUrl);
-        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-        if (!isMobile) {
-          const link = document.createElement("a");
-          link.download = "liubuliu-fit-review.png";
-          link.href = dataUrl;
-          link.click();
-        }
+          return;
+        } catch { /* user cancelled share, fall through */ }
       }
+
+      // Fallback: download
+      const link = document.createElement("a");
+      link.download = "liubuliu-fit-review.png";
+      link.href = generatedShareImage;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } catch {
-      setShareError("分享图生成失败，请稍后再试。");
-    } finally {
-      setIsGeneratingShare(false);
+      setShareError("保存失败，请长按图片保存到相册。");
     }
   };
 
@@ -1299,51 +1303,25 @@ export default function Result() {
               className={styles.shareModalPanel}
               onClick={(e) => e.stopPropagation()}
             >
-              {generatedShareImage ? (
+              {isGeneratingShare ? (
+                <p className={styles.shareHint}>正在生成分享图…</p>
+              ) : generatedShareImage ? (
                 <>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    className={styles.sharePreviewImage}
+                    className={styles.shareImagePreview}
                     src={generatedShareImage}
-                    alt="分享图预览"
+                    alt="留不留分享图"
                   />
                   <p className={styles.shareHint}>
-                    长按图片保存，或使用浏览器分享按钮发送给朋友。
-                  </p>
-                  <button
-                    type="button"
-                    className={styles.sharePreviewClose}
-                    onClick={handleCloseModal}
-                  >
-                    关闭
-                  </button>
-                </>
-              ) : (
-                <>
-                  <div className={styles.previewWrap}>
-                    <ShareCardExport
-                      mode="preview"
-                      verdictWord={getVerdictWord(decisionLabel, formData.intent)}
-                      scoreTitle={getScoreTitle(formData.intent)}
-                      scoreText={formatScore10(sharpScore)}
-                      imageDataUrl={formData.imageDataUrl}
-                      summary={sharpComment}
-                      scene={result.uiSummary.bestScenario}
-                      rxItems={shareRxItems}
-                      rxIntro={shareRxIntro}
-                      colorDir={shareColorDir}
-                    />
-                  </div>
-                  <p className={styles.shareHint}>
-                    长按图片保存，或使用浏览器分享按钮发送给朋友。
+                    长按图片保存到相册
                   </p>
                   <button
                     type="button"
                     className={styles.shareDownloadButton}
                     onClick={handleDownloadShare}
-                    disabled={isGeneratingShare}
                   >
-                    {isGeneratingShare ? "生成中…" : "分享 / 保存图片"}
+                    分享 / 保存图片
                   </button>
                   <button
                     type="button"
@@ -1353,29 +1331,14 @@ export default function Result() {
                     关闭
                   </button>
                 </>
-              )}
+              ) : null}
+
               {shareError && (
                 <p className={styles.shareError}>{shareError}</p>
               )}
             </div>
           </div>
         )}
-
-        {/* hidden export-only node — toPng captures this */}
-        <div className={styles.exportOnly} ref={shareCardRef}>
-          <ShareCardExport
-            mode="export"
-            verdictWord={getVerdictWord(decisionLabel, formData.intent)}
-            scoreTitle={getScoreTitle(formData.intent)}
-            scoreText={formatScore10(sharpScore)}
-            imageDataUrl={formData.imageDataUrl}
-            summary={sharpComment}
-            scene={result.uiSummary.bestScenario}
-            rxItems={shareRxItems}
-            rxIntro={shareRxIntro}
-            colorDir={shareColorDir}
-          />
-        </div>
       </main>
     </div>
   );
