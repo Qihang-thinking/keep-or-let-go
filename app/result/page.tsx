@@ -896,11 +896,11 @@ export default function Result() {
 
     // ── Header ──
     ctx.fillStyle = "#3f3935";
-    ctx.font = "620 28px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
+    ctx.font = "600 28px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
     ctx.fillText("留不留", P, y + 22);
 
     ctx.fillStyle = "#a1958e";
-    ctx.font = "540 18px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
+    ctx.font = "500 18px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
     ctx.textAlign = "right";
     ctx.fillText("PERSONAL FIT REVIEW", W - P, y + 22);
     ctx.textAlign = "left";
@@ -918,19 +918,19 @@ export default function Result() {
     // ── Verdict ──
     const verdictWord = getVerdictWord(decisionLabel, formData?.intent);
     ctx.fillStyle = "#2f2926";
-    ctx.font = "520 88px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
+    ctx.font = "600 88px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
     ctx.fillText(verdictWord, P, y + 66);
     y += 94;
 
     // ── Score row ──
     const scoreTitle = getScoreTitle(formData?.intent);
     ctx.fillStyle = "#9b6572";
-    ctx.font = "650 18px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
+    ctx.font = "600 18px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
     ctx.fillText(scoreTitle, P, y + 14);
 
     const scoreText = formatScore10(sharpScore);
     ctx.fillStyle = "#2f2926";
-    ctx.font = "470 72px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
+    ctx.font = "400 72px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
     ctx.fillText(scoreText, P, y + 72);
     const sw = ctx.measureText(scoreText).width;
 
@@ -1002,7 +1002,7 @@ export default function Result() {
     y += 32;
 
     ctx.fillStyle = "#9b6572";
-    ctx.font = "650 16px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
+    ctx.font = "600 16px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
     ctx.fillText("适合场景", P, y);
     y += 28;
 
@@ -1023,14 +1023,14 @@ export default function Result() {
       y += 32;
 
       ctx.fillStyle = "#9b6572";
-      ctx.font = "650 16px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
+      ctx.font = "600 16px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
       ctx.fillText("造型处方", P, y);
       y += 32;
 
       shareRxItems.forEach((item, idx) => {
         const num = String(idx + 1).padStart(2, "0");
         ctx.fillStyle = "#9b6572";
-        ctx.font = "520 22px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
+        ctx.font = "600 22px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
         ctx.fillText(num, P, y);
         ctx.fillText(item.label, P + 44, y);
         y += 26;
@@ -1045,7 +1045,7 @@ export default function Result() {
       if (shareColorDir) {
         y += 2;
         ctx.fillStyle = "#9b6572";
-        ctx.font = "650 16px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
+        ctx.font = "600 16px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
         ctx.fillText("●  ●  ●  配色方向", P, y);
         y += 24;
         ctx.fillStyle = "#5c534f";
