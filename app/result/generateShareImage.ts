@@ -11,6 +11,16 @@ type ShareImageParams = {
   colorDir?: string;
 };
 
+/* ═══════════════════════════════════
+   Layout constants
+   ═══════════════════════════════════ */
+
+const W = 750;
+const H = 1334;
+const P = 50;
+const CW = W - P * 2; // 650
+const FONT = `-apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif`;
+
 /* ── helpers ── */
 
 function drawRoundRect(
@@ -51,17 +61,9 @@ function drawImageCover(
   ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
 }
 
-function drawWrappedText(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  x: number,
-  y: number,
-  maxWidth: number,
-  lineHeight: number,
-  maxLines = 5,
-) {
-  let line = "";
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
   const lines: string[] = [];
+  let line = "";
   for (const ch of text) {
     const test = line + ch;
     if (ctx.measureText(test).width > maxWidth && line.length > 0) {
@@ -72,14 +74,25 @@ function drawWrappedText(
     }
   }
   if (line) lines.push(line);
+  return lines;
+}
 
-  let shown = lines.slice(0, maxLines);
-  if (lines.length > maxLines && shown.length > 0) {
-    const last = shown[shown.length - 1];
-    shown[shown.length - 1] = last.slice(0, -2) + "…";
+function drawTextWithMaxLines(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  lineHeight: number,
+  maxLines: number,
+) {
+  const lines = wrapText(ctx, text, maxWidth);
+  if (lines.length > maxLines) {
+    // trim last line to fit "…"
+    lines[maxLines - 1] = lines[maxLines - 1].slice(0, -2) + "\u2026";
   }
+  const shown = lines.slice(0, maxLines);
   shown.forEach((l, i) => ctx.fillText(l, x, y + i * lineHeight));
-  return y + shown.length * lineHeight;
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -91,177 +104,133 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-/* ── main ── */
+/* ═══════════════════════════════════
+   Main
+   ═══════════════════════════════════ */
 
-const W = 750;
-const P = 48;       // outer padding
-const CW = W - P * 2; // content width
-const CARD_R = 28;
-const FONT = `-apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif`;
-
-export default async function generateShareImage(
-  params: ShareImageParams,
-): Promise<string> {
+export default async function generateShareImage(params: ShareImageParams): Promise<string> {
   const { verdictWord, scoreText, scoreTitle, summary, scene, imageDataUrl, rxItems, colorDir } = params;
-
-  // ── pre-calculate height ──
-  // We'll just use a tall enough canvas and the card height will be determined by content.
-  // Start with a generous estimate: 1500 should be plenty.
-  const H = 1500;
 
   const canvas = document.createElement("canvas");
   canvas.width = W * 2;
   canvas.height = H * 2;
   const ctx = canvas.getContext("2d")!;
-  ctx.scale(2, 2); // 2x DPR → draw in logical pixels
+  ctx.scale(2, 2);
 
   // ── background ──
   ctx.fillStyle = "#fbf7f3";
   ctx.fillRect(0, 0, W, H);
 
-  // ── pre-load image if provided ──
+  // ── load image ──
   let loadedImg: HTMLImageElement | null = null;
   if (imageDataUrl) {
-    try {
-      loadedImg = await loadImage(imageDataUrl);
-    } catch { /* continue without image */ }
+    try { loadedImg = await loadImage(imageDataUrl); } catch { /* skip */ }
   }
 
-  let y = P;
-
-  // ── header ──
+  /* ═══ 1. Header ═══ */
   ctx.fillStyle = "#3f3935";
   ctx.font = `600 28px ${FONT}`;
-  ctx.fillText("留不留", P, y + 22);
+  ctx.fillText("留不留", P, 78);
 
   ctx.fillStyle = "#a1958e";
   ctx.font = `500 18px ${FONT}`;
   ctx.textAlign = "right";
-  ctx.fillText("PERSONAL FIT REVIEW", W - P, y + 22);
+  ctx.fillText("PERSONAL FIT REVIEW", W - P, 78);
   ctx.textAlign = "left";
-  y += 50;
 
-  // ── divider ──
   ctx.strokeStyle = "#e8e0da";
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(P, y);
-  ctx.lineTo(W - P, y);
+  ctx.moveTo(P, 100);
+  ctx.lineTo(W - P, 100);
   ctx.stroke();
-  y += 44;
 
-  // ── verdict ──
+  /* ═══ 2. Verdict ═══ */
   ctx.fillStyle = "#2f2926";
-  ctx.font = `600 88px ${FONT}`;
-  ctx.fillText(verdictWord, P, y + 66);
-  y += 94;
+  ctx.font = `600 76px ${FONT}`;
+  const oneLine = wrapText(ctx, verdictWord, CW)[0] || verdictWord;
+  ctx.fillText(oneLine, P, 210);
 
-  // ── score row ──
+  /* ═══ 3. Score ═══ */
   ctx.fillStyle = "#9b6572";
   ctx.font = `600 18px ${FONT}`;
-  ctx.fillText(scoreTitle, P, y + 14);
+  ctx.fillText(scoreTitle, P, 265);
 
   ctx.fillStyle = "#2f2926";
   ctx.font = `400 72px ${FONT}`;
-  ctx.fillText(scoreText, P, y + 72);
+  ctx.fillText(scoreText, P, 325);
   const sw = ctx.measureText(scoreText).width;
 
   ctx.fillStyle = "#8c827d";
   ctx.font = `500 34px ${FONT}`;
-  ctx.fillText("/ 10", P + sw + 10, y + 72);
-  y += 100;
+  ctx.fillText("/ 10", P + sw + 10, 325);
 
-  // ── image ──
-  const imgY = y;
-  const imgH = 420;
-
-  drawRoundRect(ctx, P, imgY, CW, imgH, CARD_R);
+  /* ═══ 4. Image ═══ */
+  drawRoundRect(ctx, P, 340, CW, 390, 26);
   if (loadedImg) {
     ctx.save();
-    drawRoundRect(ctx, P, imgY, CW, imgH, CARD_R);
+    drawRoundRect(ctx, P, 340, CW, 390, 26);
     ctx.clip();
-    drawImageCover(ctx, loadedImg, P, imgY, CW, imgH);
+    drawImageCover(ctx, loadedImg, P, 340, CW, 390);
     ctx.restore();
   }
   ctx.strokeStyle = "#e8e0da";
   ctx.lineWidth = 1.5;
-  drawRoundRect(ctx, P, imgY, CW, imgH, CARD_R);
+  drawRoundRect(ctx, P, 340, CW, 390, 26);
   ctx.stroke();
-  y = imgY + imgH + 32;
 
-  // ── summary ──
+  /* ═══ 5. Summary ═══ */
   ctx.fillStyle = "#514946";
   ctx.font = `400 30px ${FONT}`;
-  const shortSummary = summary.length > 150 ? summary.slice(0, 147) + "…" : summary;
-  y = drawWrappedText(ctx, shortSummary, P, y, CW, 44, 5) + 24;
+  drawTextWithMaxLines(ctx, summary, P, 770, CW, 44, 3);
 
-  // ── divider + scene ──
+  /* ═══ 6. Divider + Scene ═══ */
   ctx.strokeStyle = "#e8e0da";
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(P, y);
-  ctx.lineTo(W - P, y);
+  ctx.moveTo(P, 930);
+  ctx.lineTo(W - P, 930);
   ctx.stroke();
-  y += 32;
 
   ctx.fillStyle = "#9b6572";
   ctx.font = `600 16px ${FONT}`;
-  ctx.fillText("适合场景", P, y);
-  y += 28;
+  ctx.fillText("适合场景", P, 965);
 
   ctx.fillStyle = "#5c534f";
   ctx.font = `400 26px ${FONT}`;
-  ctx.fillText(scene.slice(0, 40), P, y);
-  y += 40;
+  drawTextWithMaxLines(ctx, scene, P, 1000, CW, 34, 1);
 
-  // ── styling RX ──
-  if (rxItems.length > 0) {
-    ctx.strokeStyle = "#e8e0da";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(P, y);
-    ctx.lineTo(W - P, y);
-    ctx.stroke();
-    y += 32;
+  /* ═══ 7. Divider + Styling RX ═══ */
+  ctx.strokeStyle = "#e8e0da";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(P, 1060);
+  ctx.lineTo(W - P, 1060);
+  ctx.stroke();
+
+  ctx.fillStyle = "#9b6572";
+  ctx.font = `600 16px ${FONT}`;
+  ctx.fillText("造型处方", P, 1095);
+
+  const shownRx = rxItems.slice(0, 2);
+  shownRx.forEach((item, idx) => {
+    const itemY = idx === 0 ? 1135 : 1215;
 
     ctx.fillStyle = "#9b6572";
-    ctx.font = `600 16px ${FONT}`;
-    ctx.fillText("造型处方", P, y);
-    y += 32;
+    ctx.font = `600 22px ${FONT}`;
+    ctx.fillText(String(idx + 1).padStart(2, "0"), P, itemY);
+    ctx.fillText(item.label, P + 44, itemY);
 
-    for (const item of rxItems) {
-      const num = String(rxItems.indexOf(item) + 1).padStart(2, "0");
-      ctx.fillStyle = "#9b6572";
-      ctx.font = `600 22px ${FONT}`;
-      ctx.fillText(num, P, y);
-      ctx.fillText(item.label, P + 44, y);
-      y += 26;
+    ctx.fillStyle = "#403936";
+    ctx.font = `400 22px ${FONT}`;
+    drawTextWithMaxLines(ctx, item.value, P + 12, itemY + 30, CW - 12, 30, 2);
+  });
 
-      ctx.fillStyle = "#403936";
-      ctx.font = `400 22px ${FONT}`;
-      const value = item.value.length > 50 ? item.value.slice(0, 48) + "…" : item.value;
-      y = drawWrappedText(ctx, value, P + 12, y, CW - 12, 30, 2) + 16;
-    }
-
-    if (colorDir) {
-      y += 2;
-      ctx.fillStyle = "#9b6572";
-      ctx.font = `600 16px ${FONT}`;
-      ctx.fillText("●  ●  ●  配色方向", P, y);
-      y += 24;
-      ctx.fillStyle = "#5c534f";
-      ctx.font = `400 24px ${FONT}`;
-      ctx.fillText(colorDir.slice(0, 40), P, y);
-      y += 30;
-    }
-  }
-
-  // ── footer URL ──
-  const urlY = Math.max(y + 60, 1300);
+  /* ═══ 8. Footer ═══ */
   ctx.fillStyle = "#c4bab6";
   ctx.font = `500 18px ${FONT}`;
   ctx.textAlign = "center";
-  ctx.fillText("www.liubuliu.com.cn", W / 2, urlY);
+  ctx.fillText("www.liubuliu.com.cn", W / 2, 1290);
   ctx.textAlign = "left";
 
   return canvas.toDataURL("image/png");
