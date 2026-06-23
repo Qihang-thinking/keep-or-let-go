@@ -877,7 +877,7 @@ export default function Result() {
     imageDataUrl?: string
   ): Promise<string> {
     const W = 750;
-    const H = 1334;
+    const H = 1500;
     const DPR = 2;
     const P = 48;
     const CW = W - P * 2;
@@ -915,13 +915,14 @@ export default function Result() {
     ctx.stroke();
     y += 44;
 
-    // ── Verdict + Score ──
+    // ── Verdict ──
     const verdictWord = getVerdictWord(decisionLabel, formData?.intent);
     ctx.fillStyle = "#2f2926";
     ctx.font = "520 88px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
     ctx.fillText(verdictWord, P, y + 66);
     y += 94;
 
+    // ── Score row ──
     const scoreTitle = getScoreTitle(formData?.intent);
     ctx.fillStyle = "#9b6572";
     ctx.font = "650 18px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
@@ -985,13 +986,13 @@ export default function Result() {
 
     // ── Summary ──
     ctx.fillStyle = "#514946";
-    ctx.font = "390 30px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
+    ctx.font = "400 30px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
     const shortSummary = sharpComment.length > 100
       ? sharpComment.slice(0, 97) + "…"
       : sharpComment;
     y = drawWrappedText(ctx, shortSummary, P, y, CW, 44, 3) + 24;
 
-    // ── Scene ──
+    // ── Divider + Scene ──
     ctx.strokeStyle = "#e8e0da";
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -1006,12 +1007,12 @@ export default function Result() {
     y += 28;
 
     ctx.fillStyle = "#5c534f";
-    ctx.font = "430 26px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
+    ctx.font = "400 26px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
     const sceneText = result?.uiSummary?.bestScenario || "";
     ctx.fillText(sceneText.slice(0, 40), P, y);
     y += 40;
 
-    // ── Styling RX ──
+    // ── Divider + Styling RX ──
     if (shareRxItems.length > 0) {
       ctx.strokeStyle = "#e8e0da";
       ctx.lineWidth = 1.5;
@@ -1032,17 +1033,17 @@ export default function Result() {
         ctx.font = "520 22px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
         ctx.fillText(num, P, y);
         ctx.fillText(item.label, P + 44, y);
+        y += 26;
 
         ctx.fillStyle = "#403936";
-        ctx.font = "440 22px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
+        ctx.font = "400 22px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
         const value = item.value.length > 50 ? item.value.slice(0, 48) + "…" : item.value;
-        const lw = ctx.measureText(item.label).width;
-        y = drawWrappedText(ctx, value, P + 44 + lw + 12, y - 2, CW - lw - 56, 30, 2) + 20;
+        y = drawWrappedText(ctx, value, P + 12, y, CW - 12, 30, 2) + 16;
       });
 
       // Color direction
       if (shareColorDir) {
-        y += 4;
+        y += 2;
         ctx.fillStyle = "#9b6572";
         ctx.font = "650 16px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
         ctx.fillText("●  ●  ●  配色方向", P, y);
@@ -1050,15 +1051,16 @@ export default function Result() {
         ctx.fillStyle = "#5c534f";
         ctx.font = "400 24px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
         ctx.fillText(shareColorDir.slice(0, 40), P, y);
-        y += 26;
+        y += 30;
       }
     }
 
-    // ── URL ──
+    // ── URL (float below content, min 1300) ──
+    const urlY = Math.max(y + 60, 1300);
     ctx.fillStyle = "#c4bab6";
     ctx.font = "500 18px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("www.liubuliu.com.cn", W / 2, H - P);
+    ctx.fillText("www.liubuliu.com.cn", W / 2, urlY);
     ctx.textAlign = "left";
 
     return canvas.toDataURL("image/png");
