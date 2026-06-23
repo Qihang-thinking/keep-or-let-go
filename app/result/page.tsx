@@ -807,10 +807,8 @@ export default function Result() {
         scoreText: formatScore10(sharpScore),
         scoreTitle: getScoreTitle(formData.intent),
         summary: sharpComment,
-        scene: result.uiSummary.bestScenario,
         imageDataUrl: formData.imageDataUrl,
         rxItems: shareRxItems,
-        colorDir: shareColorDir,
       });
       if (!dataUrl.startsWith("data:image/png")) {
         throw new Error("generated image is not a valid PNG: " + dataUrl.slice(0, 50));
