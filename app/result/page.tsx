@@ -775,6 +775,7 @@ export default function Result() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [isGeneratingShare, setIsGeneratingShare] = useState(false);
   const [shareError, setShareError] = useState("");
+  const [generatedShareImage, setGeneratedShareImage] = useState("");
   const shareCardRef = useRef<HTMLDivElement | null>(null);
 
   const handleFeedback = (value: string) => {
@@ -802,6 +803,7 @@ export default function Result() {
   const handleCloseModal = () => {
     setShowShareModal(false);
     setShareError("");
+    setGeneratedShareImage("");
   };
 
   function drawShareCardToCanvas(
@@ -985,25 +987,29 @@ export default function Result() {
 
   const handleDownloadShare = async () => {
     setShareError("");
+    setGeneratedShareImage("");
     setIsGeneratingShare(true);
 
     try {
+      // Wait for fonts
       await document.fonts?.ready;
       await new Promise((resolve) => requestAnimationFrame(resolve));
 
-      // Preload share card image if present
-      const shareImg = shareCardRef.current?.querySelector("img");
-      if (shareImg && !shareImg.complete) {
-        await new Promise<void>((resolve) => {
-          shareImg.onload = () => resolve();
-          shareImg.onerror = () => resolve();
-          if (shareImg.complete) resolve();
-        });
-      }
+      // Wait for all images in share card to load
+      const cardImages = Array.from(shareCardRef.current?.querySelectorAll("img") || []);
+      await Promise.all(
+        cardImages.map((img) => {
+          if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+          return new Promise<void>((resolve, reject) => {
+            img.onload = () => resolve();
+            img.onerror = () => reject(new Error("图片加载失败"));
+          });
+        })
+      );
 
       let dataUrl: string | null = null;
 
-      // Try DOM screenshot first
+      // Try DOM screenshot
       if (shareCardRef.current) {
         try {
           dataUrl = await toPng(shareCardRef.current, {
@@ -1012,7 +1018,7 @@ export default function Result() {
             cacheBust: true,
           });
         } catch {
-          // Fall through to canvas
+          // Fall through
         }
       }
 
@@ -1033,10 +1039,35 @@ export default function Result() {
 
       if (!dataUrl) throw new Error("生成失败");
 
-      const link = document.createElement("a");
-      link.download = "liubuliu-fit-review.png";
-      link.href = dataUrl;
-      link.click();
+      // Convert to blob for Web Share API
+      const blob = await (await fetch(dataUrl)).blob();
+      const file = new File([blob], "liubuliu-fit-review.png", { type: "image/png" });
+
+      // Try Web Share API first (mobile)
+      if (navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: "留不留｜FIT REVIEW",
+            text: "我的衣服判断结果",
+          });
+        } catch {
+          // User cancelled or share failed — show fallback
+          setGeneratedShareImage(dataUrl);
+        }
+      } else {
+        // Desktop or unsupported — show preview + download
+        setGeneratedShareImage(dataUrl);
+
+        // Also trigger download on desktop
+        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+        if (!isMobile) {
+          const link = document.createElement("a");
+          link.download = "liubuliu-fit-review.png";
+          link.href = dataUrl;
+          link.click();
+        }
+      }
     } catch {
       setShareError("分享图生成失败，请稍后再试。");
     } finally {
@@ -1595,59 +1626,44 @@ export default function Result() {
 </p>
               </div>
 
-              <div className={styles.shareModalActions}>
-                <button
-  type="button"
-  onClick={handleDownloadShare}
-  disabled={isGeneratingShare}
-  style={{
-    minHeight: "48px",
-    padding: "0 28px",
-    border: "1px solid #a96075",
-    borderRadius: "999px",
-    background: isGeneratingShare ? "#c9a4ad" : "#a96075",
-    color: "#fffefd",
-    fontSize: "15px",
-    fontWeight: 700,
-    letterSpacing: "0.04em",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    boxShadow: "none",
-    cursor: isGeneratingShare ? "not-allowed" : "pointer",
-    appearance: "none",
-    WebkitAppearance: "none",
-    opacity: isGeneratingShare ? 0.7 : 1,
-  }}
->
-  {isGeneratingShare ? "生成中…" : "下载图片"}
-</button>
-
-<button
-  type="button"
-  onClick={handleCloseModal}
-  style={{
-    minHeight: "48px",
-    padding: "0 28px",
-    border: "1px solid #e3d8d2",
-    borderRadius: "999px",
-    background: "#fffefd",
-    color: "#7d716c",
-    fontSize: "15px",
-    fontWeight: 700,
-    letterSpacing: "0.04em",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    boxShadow: "none",
-    cursor: "pointer",
-    appearance: "none",
-    WebkitAppearance: "none",
-  }}
->
-  关闭
-</button>
-              </div>
+              {generatedShareImage ? (
+                <div className={styles.sharePreviewFallback}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    className={styles.sharePreviewImage}
+                    src={generatedShareImage}
+                    alt="分享图预览"
+                  />
+                  <p className={styles.sharePreviewHint}>
+                    长按图片保存，或使用浏览器分享按钮发送给朋友。
+                  </p>
+                  <button
+                    type="button"
+                    className={styles.sharePreviewClose}
+                    onClick={handleCloseModal}
+                  >
+                    关闭
+                  </button>
+                </div>
+              ) : (
+                <div className={styles.shareModalActions}>
+                  <button
+                    type="button"
+                    className={styles.shareDownloadButton}
+                    onClick={handleDownloadShare}
+                    disabled={isGeneratingShare}
+                  >
+                    {isGeneratingShare ? "生成中…" : "分享 / 保存图片"}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.shareCloseButton}
+                    onClick={handleCloseModal}
+                  >
+                    关闭
+                  </button>
+                </div>
+              )}
 
               {shareError && (
                 <p className={styles.shareError}>{shareError}</p>

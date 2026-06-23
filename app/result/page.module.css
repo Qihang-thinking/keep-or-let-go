@@ -797,15 +797,19 @@
   background: rgba(47, 41, 38, 0.42);
   backdrop-filter: blur(2px);
   overflow-y: auto;
+  overflow-x: hidden;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
 }
 
 .shareModal {
-  width: 100%;
-  max-width: 360px;
+  width: min(100%, 360px);
+  max-width: calc(100vw - 32px);
   padding: 24px 20px 32px;
   border-radius: 24px;
   background: #f7f4f0;
   box-shadow: 0 24px 64px rgba(47, 41, 38, 0.14);
+  overflow-x: hidden;
 }
 
 .shareModalHeader {
@@ -846,7 +850,8 @@
 
 /* ── Share card (visible, inside modal) ── */
 .shareCard {
-  width: 320px;
+  width: min(320px, calc(100vw - 64px));
+  max-width: 100%;
   margin: 0 auto;
   padding: 28px;
   border: 1px solid #e8e0da;
@@ -1175,6 +1180,62 @@
   background: var(--result-rose-soft);
   border-color: #c9a4ad;
   color: #7e4b59;
+}
+
+/* ── Share preview fallback ── */
+.sharePreviewFallback {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+}
+
+.sharePreviewImage {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  border-radius: 16px;
+  border: 1px solid #e8e0da;
+  background: #fff;
+}
+
+.sharePreviewHint {
+  margin: 0;
+  color: #8c827d;
+  font-size: 13px;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.sharePreviewClose {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 20px;
+  border: 1px solid #e8e0da;
+  border-radius: 999px;
+  background: #fffefd;
+  color: #8c827d;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 560;
+  text-align: center;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.sharePreviewClose:hover {
+  background: var(--result-rose-soft);
+  border-color: #c9a4ad;
+  color: #7e4b59;
+}
+
+.shareErrorInner {
+  margin: 8px 0 0;
+  color: #9b3f58;
+  font-size: 13px;
+  font-weight: 650;
+  text-align: center;
 }
 
 /* ── Verdict card share button ── */
