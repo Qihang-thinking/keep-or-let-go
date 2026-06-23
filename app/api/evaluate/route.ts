@@ -416,8 +416,7 @@ async function callKimi(body: RequestBody, compact = false) {
             : buildPrompt(body, compact),
         },
       ],
-      temperature: 0.1,
-      top_p: 0.3,
+      temperature: 0.6,
       max_tokens: compact ? 900 : 1200,
     }),
   });
