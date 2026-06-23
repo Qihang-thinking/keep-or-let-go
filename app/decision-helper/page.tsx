@@ -43,15 +43,15 @@ const emptyForm: FormState = {
 const purposeOptions = [
   {
     value: "要不要留下 / 退掉",
-    title: "留 / 不留",
+    title: "要不要留下",
   },
   {
     value: "这件适不适合我",
-    title: "适不适合",
+    title: "适不适合我",
   },
   {
     value: "这件应该怎么搭",
-    title: "怎么搭",
+    title: "应该怎么搭",
   },
 ];
 
@@ -66,40 +66,34 @@ const itemTypeOptions = [
   "包 / 配饰",
 ];
 const concernOptions = [
-  "显胖显矮",
+  "担心显胖",
+  "担心显矮",
   "不好搭",
   "不够日常",
   "性价比纠结",
-  "风格不确定",
-  "舍不得但很少穿",
+  "不像我的风格",
 ];
 
 const firstFeelingOptions = [
   "很喜欢",
   "还不错",
-  "说不上来",
-  "有点别扭",
-  "明显不舒服",
+  "不太喜欢",
+  "不舒服",
 ];
-
-const similarItemsOptions = ["没有", "有一两件", "有很多", "不确定"];
 
 const occasionOptions = [
   "日常出门",
   "通勤",
   "约会聚会",
   "旅行拍照",
-  "运动休闲",
   "特殊场合",
 ];
 
 const priceFeelingOptions = [
-  "不考虑价格",
   "觉得很值",
   "可以接受",
   "有点贵",
   "明显不值",
-  "不记得价格",
 ];
 function DecisionHelperContent() {
   const router = useRouter();
@@ -429,11 +423,7 @@ async function compressImageFile(file: File): Promise<string> {
         <header className={styles.hero}>
           <p className={styles.kicker}>Keep or Let Go</p>
           <h1 className={styles.title}>判断这件衣服</h1>
-
-          <div className={styles.subtitleBlock}>
-            <p>上传照片，选择判断目的和单品类型。</p>
-            <p>补充可选项，提供更多信息，可让判断更加准确。</p>
-          </div>
+          <p className={styles.subtitleLine}>上传一张照片，选择你这次想解决的问题。</p>
         </header>
 
         <div className={styles.progressBar}>
@@ -506,9 +496,8 @@ async function compressImageFile(file: File): Promise<string> {
             <div className={styles.cardHeader}>
               <div className={styles.cardTitleRow}>
                 <span className={styles.requiredTag}>必填</span>
-                <h2 className={styles.cardTitle}>判断目的</h2>
+                <h2 className={styles.cardTitle}>这次你想判断什么？</h2>
               </div>
-              <p className={styles.cardHint}>选择你这次最想解决的问题。</p>
             </div>
 
             <div className={styles.optionGrid}>
@@ -542,9 +531,8 @@ async function compressImageFile(file: File): Promise<string> {
             <div className={styles.cardHeader}>
               <div className={styles.cardTitleRow}>
                 <span className={styles.requiredTag}>必填</span>
-                <h2 className={styles.cardTitle}>单品类型</h2>
+                <h2 className={styles.cardTitle}>想要判断什么单品？</h2>
               </div>
-              <p className={styles.cardHint}>让判断更贴近具体穿搭场景。</p>
             </div>
 
             <div className={styles.chipGrid}>
@@ -577,19 +565,16 @@ async function compressImageFile(file: File): Promise<string> {
               className={styles.optionalToggle}
               onClick={() => setShowOptional((prev) => !prev)}
             >
-              <span>补充更多信息</span>
-              <span className={styles.optionalAction}>
-                <em>{showOptional ? "已展开" : "可选 · 让判断更准"}</em>
-                <b>{showOptional ? "−" : "+"}</b>
-              </span>
+              <span>＋ 补充更多信息</span>
+              <span className={styles.optionalHint}>可选</span>
             </button>
 
             {showOptional && (
   <div className={styles.optionalContent}>
     <div className={styles.optionGroup}>
       <div className={styles.optionGroupTitle}>
-        <strong>最纠结什么</strong>
-        <span>可选</span>
+        <span className={styles.optionGroupNumber}>01</span>
+        <strong>最纠结什么？</strong>
       </div>
 
       <div className={styles.selectGrid}>
@@ -614,8 +599,8 @@ async function compressImageFile(file: File): Promise<string> {
 
     <div className={styles.optionGroup}>
       <div className={styles.optionGroupTitle}>
+        <span className={styles.optionGroupNumber}>02</span>
         <strong>穿上后的第一感受</strong>
-        <span>可选</span>
       </div>
 
       <div className={styles.selectGrid}>
@@ -640,34 +625,9 @@ async function compressImageFile(file: File): Promise<string> {
 
     <div className={styles.optionGroup}>
       <div className={styles.optionGroupTitle}>
-        <strong>衣橱里有没有类似单品</strong>
-        <span>可选</span>
-      </div>
-
-      <div className={styles.selectGrid}>
-        {similarItemsOptions.map((option) => {
-          const selected = form.similarItems === option;
-
-          return (
-            <button
-              key={option}
-              type="button"
-              className={`${styles.selectChip} ${
-                selected ? styles.selectChipActive : ""
-              }`}
-              onClick={() => selectSingleValue("similarItems", option)}
-            >
-              {option}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-
-    <div className={styles.optionGroup}>
-      <div className={styles.optionGroupTitle}>
+        <span className={styles.optionGroupNumber}>03</span>
         <strong>可能使用场景</strong>
-        <span>可选 · 可多选</span>
+        <span className={styles.optionGroupHint}>可多选</span>
       </div>
 
       <div className={styles.selectGrid}>
@@ -692,8 +652,8 @@ async function compressImageFile(file: File): Promise<string> {
 
     <div className={styles.optionGroup}>
       <div className={styles.optionGroupTitle}>
+        <span className={styles.optionGroupNumber}>04</span>
         <strong>你对价格的感受</strong>
-        <span>可选</span>
       </div>
 
       <div className={styles.selectGrid}>
@@ -716,14 +676,17 @@ async function compressImageFile(file: File): Promise<string> {
       </div>
     </div>
 
-    <label className={styles.field}>
-      <span>补充说明</span>
+    <div className={styles.field}>
+      <div className={styles.fieldHeader}>
+        <span className={styles.optionGroupNumber}>05</span>
+        <span>补充说明</span>
+      </div>
       <textarea
         value={form.extraInfo}
         onChange={(event) => updateForm("extraInfo", event.target.value)}
-        placeholder="比如：我担心它显胖 / 腰线不对 / 颜色不好搭 / 买回来可能很少穿"
+        placeholder="比如：腰线不对 / 颜色不好搭 / 买回来很少穿"
       />
-    </label>
+    </div>
   </div>
 )}
           </section>
@@ -741,16 +704,16 @@ async function compressImageFile(file: File): Promise<string> {
     className={styles.submitButton}
     disabled={isSubmitting}
   >
-    {isSubmitting ? "正在分析中..." : "开始判断"}
+    {isSubmitting ? "分析中…" : "开始判断"}
   </button>
 
   {isSubmitting ? (
     <p className={styles.loadingNotice}>
-      AI 正在分析图片和表单，通常需要 20–25 秒，请不要关闭页面。
+      AI 正在分析图片和穿搭信息，一般需要 30 秒左右，请不要关闭页面。
     </p>
   ) : (
     <p className={styles.submitHint}>
-      快速判断只需要上传图片、选择判断目的和单品类型。
+      上传图片、选择判断目的和单品类型后即可开始。
     </p>
   )}
 </div>

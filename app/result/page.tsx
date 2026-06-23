@@ -401,8 +401,20 @@ function getScorePercent(score: number) {
   return Math.max(0, Math.min(100, Math.round(score * 10)));
 }
 
-function getScoreOutOf100(score: number) {
-  return Math.max(0, Math.min(100, Math.round(score * 10)));
+function formatScore10(score: number) {
+  return score.toFixed(1);
+}
+
+function getScoreTitle(intent?: string) {
+  if (intent?.includes("怎么搭")) return "搭配指数";
+  if (intent?.includes("适不适合")) return "契合度";
+  return "留用指数";
+}
+
+function getScoreHint(intent?: string) {
+  if (intent?.includes("怎么搭")) return "衡量的是这件单品通过搭配被穿好的空间。";
+  if (intent?.includes("适不适合")) return "衡量的是与你身形、风格和场景的匹配度。";
+  return "衡量的是保留适配度，不是单品好坏。";
 }
 
 function getItemTags(formData: FormData, result: EvaluationResult) {
@@ -428,6 +440,83 @@ function getAccessoryText(result: EvaluationResult, primaryPlan?: StylingPlan) {
     primaryPlan?.shoesAndBag ||
     "小体量配饰即可，避免抢走单品重点。"
   );
+}
+
+type RxItem = { label: string; value: string };
+
+function getFilteredRxItems(
+  itemType: string,
+  result: EvaluationResult,
+  primaryPlan?: StylingPlan
+): RxItem[] {
+  const f = result.stylingFormula || {};
+  const p = primaryPlan;
+
+  const inner = f.inner || "";
+  const bottom = f.bottom || "";
+  const shoes = f.shoes || "";
+  const bag = f.bag || "";
+  const shoesAndBag = [shoes || p?.shoesAndBag || "", bag].filter(Boolean).join(" + ");
+  const avoid = f.avoid || p?.avoid || "";
+  const outfitDir = inner || bottom || p?.outfit || "";
+
+  switch (itemType) {
+    case "连衣裙":
+      return [
+        { label: "鞋包", value: shoesAndBag || p?.shoesAndBag || "" },
+        { label: "配饰 / 避雷", value: avoid },
+      ].filter((v) => v.value);
+
+    case "上衣":
+      return [
+        { label: "下装", value: bottom || p?.outfit || "" },
+        { label: "鞋包", value: shoesAndBag || p?.shoesAndBag || "" },
+        { label: "配饰 / 避雷", value: avoid },
+      ].filter((v) => v.value);
+
+    case "裤子":
+    case "半裙":
+      return [
+        { label: "上衣", value: inner || p?.outfit || "" },
+        { label: "鞋包", value: shoesAndBag || p?.shoesAndBag || "" },
+        { label: "配饰 / 避雷", value: avoid },
+      ].filter((v) => v.value);
+
+    case "外套":
+      return [
+        { label: "内搭", value: inner || p?.outfit || "" },
+        { label: "下装", value: bottom },
+        { label: "鞋包配饰", value: shoesAndBag || p?.shoesAndBag || "" },
+      ].filter((v) => v.value);
+
+    case "套装":
+      return [
+        { label: "鞋包", value: shoesAndBag || p?.shoesAndBag || "" },
+        { label: "配饰 / 避雷", value: avoid },
+      ].filter((v) => v.value);
+
+    case "鞋子":
+      return [
+        { label: "服装搭配方向", value: outfitDir || p?.outfit || "" },
+        { label: "包配饰", value: [bag, avoid].filter(Boolean).join(" + ") },
+        { label: "避雷", value: avoid },
+      ].filter((v) => v.value);
+
+    case "包 / 配饰":
+      return [
+        { label: "服装搭配方向", value: outfitDir || p?.outfit || "" },
+        { label: "鞋子", value: shoes },
+        { label: "避雷", value: avoid },
+      ].filter((v) => v.value);
+
+    default:
+      return [
+        { label: "内搭", value: inner || p?.outfit || "" },
+        { label: "下装", value: bottom },
+        { label: "鞋包", value: shoesAndBag || p?.shoesAndBag || "" },
+        { label: "配饰 / 避雷", value: avoid },
+      ].filter((v) => v.value);
+  }
 }
 
 function getSpectrumTone(label: DecisionLabel, intent?: string) {
@@ -779,7 +868,7 @@ export default function Result() {
   const imageCheckWarning = getImageCheckWarning(result);
   const sharpScore = getSharpScore(result, decisionLabel);
   const scorePercent = getScorePercent(sharpScore);
-  const scoreOutOf100 = getScoreOutOf100(sharpScore);
+  const scoreDisplay = formatScore10(sharpScore);
   const sharpComment = getSharpComment(result, decisionLabel, formData.intent);
   const sharpReason = getOneLineReason(result);
   const biggestProblem = getBiggestProblem(result);
@@ -864,7 +953,7 @@ export default function Result() {
 
           <div className={styles.verdictTopline}>
             <span>THE VERDICT</span>
-            <strong>{getDisplayDecisionLabel(decisionLabel, formData.intent)}</strong>
+            <strong>VERDICT</strong>
           </div>
 
           <div className={styles.verdictBody}>
@@ -872,52 +961,27 @@ export default function Result() {
             <p>{sharpComment}</p>
           </div>
 
+          <div className={styles.verdictScoreStrip}>
+            <div className={styles.verdictScoreHeader}>
+              <span>{getScoreTitle(formData.intent)}</span>
+              <strong>{scoreDisplay}<em>/10</em></strong>
+            </div>
+            <div className={styles.verdictScoreTrack}>
+              <div className={styles.verdictScoreFill} style={{ width: `${scorePercent}%` }} />
+              <div className={styles.verdictScoreMarker} style={{ left: `${scorePercent}%` }} />
+            </div>
+            <p className={styles.verdictScoreHint}>{getScoreHint(formData.intent)}</p>
+          </div>
+
           <div className={styles.verdictReasonBox}>
             <span>判断依据</span>
-            <p>{sharpReason}</p>
+            <p>{sharpReason}。{biggestProblem}</p>
           </div>
 
-          <div className={styles.verdictMetaGrid}>
-            <div>
-              <span>最影响判断</span>
-              <strong>{biggestProblem}</strong>
-            </div>
-            <div>
-              <span>{getScenarioLabel(formData.intent)}</span>
-              <strong>{result.uiSummary.bestScenario}</strong>
-            </div>
+          <div className={styles.verdictMetaLine}>
+            <span>{getScenarioLabel(formData.intent)}</span>
+            <strong>{result.uiSummary.bestScenario}</strong>
           </div>
-        </section>
-
-        <section className={styles.scoreReviewCard}>
-          <div className={styles.sectionEyebrowRow}>
-            <span>契合度评分</span>
-            <strong className={styles.scoreNumber}>
-  <span>{scoreOutOf100}</span>
-  <em>/100</em>
-</strong>
-          </div>
-
-          <div className={styles.editorialSpectrumWrap}>
-            <div
-              className={styles.editorialSpectrumTrack}
-              style={{ "--score-percent": `${scorePercent}%` } as CSSProperties}
-              aria-hidden="true"
-            >
-              <div
-                className={styles.editorialSpectrumMarker}
-                style={{ left: `${scorePercent}%` }}
-              />
-            </div>
-
-            <div className={styles.editorialSpectrumLabels}>
-              <span>舍弃 0–40</span>
-              <span>斟酌 40–70</span>
-              <span>保留 70–100</span>
-            </div>
-          </div>
-
-          <p className={styles.scoreCaption}>{getSpectrumTone(decisionLabel, formData.intent)}</p>
         </section>
 
         <section className={styles.uploadEvidenceCard}>
@@ -959,76 +1023,64 @@ export default function Result() {
           )}
         </section>
 
-        {primaryPlan && (
-          <section className={styles.stylingRxCard}>
-            <div className={styles.rxHeader}>
-              <span>造型处方</span>
-              <strong>STYLING RX</strong>
+        {(() => {
+  const rxItems = getFilteredRxItems(formData.itemType, result, primaryPlan);
+  const hasRx = rxItems.length > 0 || primaryPlan;
+
+  if (!hasRx) return null;
+
+  return (
+    <section className={styles.stylingRxCard}>
+      <div className={styles.rxHeader}>
+        <span>造型处方</span>
+        <strong>STYLING RX</strong>
+      </div>
+
+      {primaryPlan?.whyItWorks && (
+        <p className={styles.rxIntro}>{primaryPlan.whyItWorks}</p>
+      )}
+
+      <div className={styles.rxList}>
+        {rxItems.map((item, index) => (
+          <div key={index} className={styles.rxItem}>
+            <em>{String(index + 1).padStart(2, "0")}</em>
+            <div>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
             </div>
+          </div>
+        ))}
+      </div>
 
-            {primaryPlan.whyItWorks && (
-              <p className={styles.rxIntro}>{primaryPlan.whyItWorks}</p>
-            )}
+      <div className={styles.rxColorNote}>
+        <span className={styles.rxColorDots}>
+          <span className={styles.rxColorDot} />
+          <span className={styles.rxColorDot} />
+          <span className={styles.rxColorDot} />
+        </span>
+        <span>配色方向</span>
+        <p>{getFormulaValue(result, "color", primaryPlan?.colorDirection || "")}</p>
+      </div>
 
-            <div className={styles.rxList}>
-              <div className={styles.rxItem}>
-                <em>01</em>
-                <div>
-                  <span>内搭</span>
-                  <strong>{getFormulaValue(result, "inner", primaryPlan.outfit)}</strong>
-                </div>
+      {morePlans.length > 0 && (
+        <details className={styles.inlineDetails}>
+          <summary>查看其他搭配方案</summary>
+          <div className={styles.miniPlanList}>
+            {morePlans.map((plan, index) => (
+              <div key={index}>
+                <strong>{plan.scenario}</strong>
+                <p>{plan.outfit}</p>
+                <span>
+                  鞋包：{plan.shoesAndBag}；颜色：{plan.colorDirection}
+                </span>
               </div>
-
-              <div className={styles.rxItem}>
-                <em>02</em>
-                <div>
-                  <span>下装</span>
-                  <strong>{getFormulaValue(result, "bottom", primaryPlan.outfit)}</strong>
-                </div>
-              </div>
-
-              <div className={styles.rxItem}>
-                <em>03</em>
-                <div>
-                  <span>鞋包</span>
-                  <strong>
-                    {getFormulaValue(result, "shoes", primaryPlan.shoesAndBag)} + {getFormulaValue(result, "bag", primaryPlan.shoesAndBag)}
-                  </strong>
-                </div>
-              </div>
-
-              <div className={styles.rxItem}>
-                <em>04</em>
-                <div>
-                  <span>配饰 / 避雷</span>
-                  <strong>{accessoryText}</strong>
-                </div>
-              </div>
-            </div>
-
-            <div className={styles.rxColorNote}>
-              <span>配色方向</span>
-              <p>{getFormulaValue(result, "color", primaryPlan.colorDirection)}</p>
-            </div>
-
-            {morePlans.length > 0 && (
-              <details className={styles.inlineDetails}>
-                <summary>查看其他搭配方案</summary>
-                <div className={styles.miniPlanList}>
-                  {morePlans.map((plan, index) => (
-                    <div key={index}>
-                      <strong>{plan.scenario}</strong>
-                      <p>{plan.outfit}</p>
-                      <span>
-                        鞋包：{plan.shoesAndBag}；颜色：{plan.colorDirection}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </details>
-            )}
-          </section>
-        )}
+            ))}
+          </div>
+        </details>
+      )}
+    </section>
+  );
+})()}
 
         <section className={styles.breakdownCard}>
           <div className={styles.breakdownHeader}>
