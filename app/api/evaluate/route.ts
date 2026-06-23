@@ -2,28 +2,15 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-type FormPayload = {
-  imageDataUrl?: string;
-  imageName?: string;
-  purpose?: string;
-  intent?: string;
+type RequestBody = {
   itemType?: string;
   concern?: string;
-  firstFeeling?: string;
   feeling?: string;
   similarItems?: string;
-  occasion?: string;
   scenario?: string;
-  priceFeeling?: string;
-  extraInfo?: string;
   note?: string;
-};
-
-type RequestBody = FormPayload & {
-  image?: string;
-  imageBase64?: string;
-  form?: FormPayload;
-  formData?: FormPayload;
+  imageName?: string;
+  imageDataUrl?: string;
 };
 
 type KimiResponse = {
@@ -39,256 +26,43 @@ type KimiResponse = {
   };
 };
 
-function normalizeBody(body: RequestBody): RequestBody {
-  const form = body.form || body.formData || {};
-
-  return {
-    ...body,
-    imageDataUrl:
-      body.imageDataUrl ||
-      body.image ||
-      body.imageBase64 ||
-      form.imageDataUrl,
-    imageName: body.imageName || form.imageName,
-    intent: body.intent || body.purpose || form.intent || form.purpose,
-    itemType: body.itemType || form.itemType,
-    concern: body.concern || form.concern,
-    feeling:
-      body.feeling ||
-      body.firstFeeling ||
-      form.feeling ||
-      form.firstFeeling,
-    similarItems: body.similarItems || form.similarItems,
-    scenario:
-      body.scenario ||
-      body.occasion ||
-      form.scenario ||
-      form.occasion,
-    priceFeeling: body.priceFeeling || form.priceFeeling,
-    note: body.note || body.extraInfo || form.note || form.extraInfo,
-    form,
-    formData: form,
-  };
-}
-
-function getIntentGuide(intent?: string) {
-  if (intent?.includes("怎么搭")) {
-    return `
-当前判断目的：这件应该怎么搭。
-输出重点：直接回答“怎么搭更好看”，不要把主结论写成留不留、退不退、值得留下。
-headline 应该像一个搭配方向或风格结论，例如“适合走轻法式约会感”“适合做通勤里的温柔亮点”。
-finalNote 必须给出具体穿法建议，不要以“建议留下/建议放手”作为核心。
-stylingPlans 和 stylingFormula 是最重要的部分，必须具体到上衣/下装/鞋包/配饰/颜色/避雷。
-sharpReview.comment 要回答“这件单品怎么搭才成立”，不要回答“要不要留下”。
-decision.label 只表示搭配可行度，不表示留不留：
-- 建议放手 = 不建议硬搭，单品本身限制很大
-- 再观察 = 需要明显调整才好搭
-- 有条件留下 = 有搭配空间，但需要控制场景和单品
-- 值得留下 = 很好搭，搭配方向明确
-`;
-  }
-
-  if (intent?.includes("适不适合")) {
-    return `
-当前判断目的：这件适不适合我。
-输出重点：判断颜色、版型、比例、风格、气质和使用场景是否适合用户。
-不要把主结论写成“今天穿合不合适”，也不要把主结论写成“留不留”。
-headline 应该是适配判断，例如“版型适合，但风格需要场景支撑”。
-finalNote 应围绕“适不适合你、什么条件下适合、怎么调整更适合”。
-sharpReview.comment 要回答“它对用户本人是否加分”，不要回答“是否值得购买”。
-decision.label 只表示适配度：
-- 建议放手 = 不太适合
-- 再观察 = 需要再观察
-- 有条件留下 = 有条件适合
-- 值得留下 = 很适合你
-`;
-  }
-
-  return `
-当前判断目的：要不要留下 / 退掉。
-输出重点：判断这件衣服是否值得继续占据衣橱位置，或是否应该退掉/放手。
-需要重点考虑保留价值、闲置风险、重复度、价格感受、打理成本和使用场景。
-headline 应该直接给出留不留倾向，例如“有亮点，但闲置风险偏高”。
-finalNote 应给出明确保留/退掉/再观察建议。
-sharpReview.comment 要回答“到底值不值得留”，必须有明确取舍。
-decision.label 表示留不留倾向：
-- 建议放手 = 更建议退掉/放手
-- 再观察 = 暂时不做决定
-- 有条件留下 = 满足特定条件才值得留
-- 值得留下 = 明确值得保留
-`;
-}
-
 function buildPrompt(body: RequestBody, compact = false) {
   const lengthRule = compact
-    ? "每个字符串字段不超过 24 个中文字符。只写短句。"
-    : "每个字符串字段不超过 42 个中文字符。不要写长段落。";
+    ? "每个字符串字段不超过 45 个中文字符。搭配方案只写关键词式短句。"
+    : "每个字符串字段不超过 70 个中文字符。不要写长段落。";
 
   return `
-你是「留不留」中文衣橱决策助手。请根据用户上传的衣服图片和表单信息，完成一次“单件衣服判断”。
+你是「留不留」中文衣橱决策助手。请根据用户上传的衣服图片和表单信息，判断这件衣服是否值得留下。
 
 用户信息：
-判断目的：${body.intent || "未填写"}
-单品类型：${body.itemType || "未填写"}
-纠结点：${body.concern || "未填写"}
-第一感受：${body.feeling || "未填写"}
-类似单品：${body.similarItems || "未填写"}
-可能使用场景：${body.scenario || "未填写"}
-价格感受：${body.priceFeeling || "未填写"}
+单品类型：${body.itemType || "未知"}
+纠结点：${body.concern || "未知"}
+第一感受：${body.feeling || "未知"}
+类似单品：${body.similarItems || "未知"}
+主要场景：${body.scenario || "未知"}
 补充说明：${body.note || "无"}
 
-${getIntentGuide(body.intent)}
-
-判断语气要求：
-1. 你不是礼貌客服，也不是泛泛夸人的穿搭博主。你是直接、准确、会指出问题的衣橱判断助手。
-2. 先下判断，再讲原因；不要绕弯，但不要为了显得专业而刻意挑刺。
-3. 评价要像真人试衣建议：一句话里要有明确取舍，例如“能留，但不是高分单品”“适合当功能外搭，不适合靠它提升质感”。
-4. 必须指出“这件单品最拖后腿的地方”，但只能归因于衣服的颜色、版型、长度、松量、面料、搭配关系造成的视觉效果，例如压低重心、显拖沓、软塌、不够利落、难打理、和用户期待不匹配。
-5. sharpReview.comment 要像真人判断：不攻击用户，但要敢说真话。避免模板腔，不要写“适合一部分场景”这种泛泛表述。
-6. sharpReview.comment 要有取舍，但不要毒舌。
-7. sharpReview.score 是 0–10 的评分，根据用户判断目的代表不同含义：
-    - 留 / 不留：代表"留用指数"——衡量这件单品留在衣橱里的综合价值。
-    - 适不适合：代表"契合度"——衡量单品与用户身形、风格、场景的匹配度。
-    - 怎么搭：代表"搭配指数"——衡量单品通过搭配被穿好的空间和灵活度。
-   分数不是审美考试分，不是"好不好看"，而是实用保留/适配/搭配价值。
-8. 评分严格按以下锚点：
-    - 8.5–10.0：很值得留 / 很适合 / 很好搭 —— 有明确加分点，短板不会拖垮整体。
-    - 7.5–8.4：适合保留 / 比较契合 / 搭配空间好 —— 总体合格，有亮点但有一两处需要搭配修正。
-    - 6.5–7.4：有条件保留 / 有条件适合 / 需要搭配修正 —— 可用但不惊艳，需要场景或搭配支撑。
-    - 5.5–6.4：谨慎考虑 —— 短板明显且日常利用率存疑。
-    - 0–5.4：建议放手 —— 短板严重，很难通过搭配弥补。
-9. 评分纪律：
-    - 不要因为一个局部问题（例如袖长略长、面料轻微皱）就大幅压低分数。
-    - 如果单品有明确亮点，且问题可通过搭配、场景或修改改善，通常不应低于 6.5。
-    - 如果用户表达喜欢、价格合适、已有使用场景，可以适度提高保留价值的判断，但不能忽略版型和比例问题。
-    - 普通可穿但不惊艳的单品应给 6.8–7.4，不要打成 5–6 分。
-
-稳定判断流程要求：
-1. 你必须按以下固定顺序分析，不允许跳过或自由排序：
-   第一步：识别客观事实 —— 单品类型、颜色、版型、长度、面料质感、穿着状态。
-   第二步：版型与比例 —— 肩线、袖长、衣长、腰线、松量、视觉重心。
-   第三步：场景适配 —— 单品适合什么场景，不适合什么场景。
-   第四步：搭配门槛 —— 至少需要什么内搭/下装/鞋包才能成立。
-   第五步：保留价值 —— 结合用户场景、价格感受和衣橱重复度判断。
-   第六步：输出结论、分数和建议。
-2. 同一图片 + 同一判断目的 + 同一单品类型 + 同一补充信息，重复判断时必须保持核心结论一致。
-3. 不要因为措辞差异改变主结论（例如不要一次给"值得留下"，另一次给"建议放手"）。
-4. 分数波动必须控制在 ±0.3 以内。
-5. 不使用随机或多样化的措辞；每次回答应尽量稳定，优先输出最合理而非最有新意的判断。
-
-9. 不要输出"适合大多数人""日常百搭""有一定搭配空间""适合一部分场景"这种空话；必须用图片证据说明为什么。
-10. stylingFormula 必须像穿搭处方，具体到内搭、下装、鞋、包、配饰、配色和避雷。
-11. 如果用户在"纠结点"或"补充说明"中出现"担心显胖"或"担心显矮"，必须理解为用户的主观顾虑，不能输出"确实显胖""确实显矮""你担心显胖显矮是对的"。应该写成：
-    "你担心的点主要来自衣服的……"、"视觉上可能会拉宽/压低……"。
-    所有负面视觉判断必须归因于衣服版型/面料/长度造成的视觉效果，严禁攻击用户身材。
-12. 如果用户提到显胖、显矮、显壮、腿粗、胯宽、肩宽等担忧，必须改写成衣服造成的视觉效果，例如"这件的长度会压低视觉重心""裤腿松量会放大下半身量感""肩袖比例让上半身不够利落"。
-13. 允许直接指出问题，但不要用“你确实……”来确认用户对自己身体的负面评价。
-
-表达克制要求：
-1. 不要为了毒舌而夸大短板；普通可以说普通，但不要轻易写“廉价、土气、显旧、没精神、显胖、显壮、撑不住”。禁止把“显胖/显矮/显壮”直接写成对用户身体的结论。
-2. visualAnalysis、sharpReview、stylingPlans、stylingFormula 不要重复同一句话。
-3. headline 用自然中文，不要中英混杂。
-4. 搭配建议要像人话，不要写模板腔。
-5. 不要直接评价用户身体部位大小，例如“臀部偏大”“腿粗”“肩宽”。应改写为衣服造成的视觉效果，例如“胯臀区域横向感被放大”“裤腿松量让下半身显宽”。
-6. 如果单品整体干净、比例没有明显灾难、能进入 2 套以上可执行搭配，即使有短板，也不应低于 6.8。
-7. 如果单品只是“不惊艳但可用”，应给 6.8-7.4，而不是 5-6 分。
-8. 所有负面判断优先写成“衣服版型/面料/长度造成的效果”，不要写成“用户撑不住”“人不精神”“穿着者不适合”。
-9. 避免使用尴尬或不自然的身体部位词，例如“后臀口袋”“臀部口袋”；应改写为“后袋线条”“口袋痕迹”“后片细节”，且只有图片清晰可见时才提。
-10. 不要写“你纠结显胖显矮是对的”“你担心显胖是对的”“你确实会显矮”这类句子。应写“这个担心有依据，主要来自衣服的长度/松量/腰线/面料”。
-11. 所有建议必须让用户感觉是在评估衣服，而不是审判自己的身材。
-
-通用判断要求：
-1. 必须优先分析图片里的衣服本身，再结合表单。不能把表单信息包装成单品本身判断。
-2. 图片观察必须具体：颜色冷暖/明暗/饱和度、领口/门襟、肩线、袖长、衣长、腰线、宽松度、面料垂感、褶皱、透感、装饰细节、风格信号。
-3. 如果是上身图，必须评价肩线、袖长、衣长、视觉重心、是否压低视觉重心、是否让上半身不够利落。
-4. 如果图片信息有限，要说明“图片看不清某项”，但仍要基于看得见的部分判断。
-5. 不要为了安慰用户强行给高分，也不要为了显得严格强行给低分。
+判断要求：
+1. 必须结合图片本身，不要只评价表单。
+2. 重点看颜色、版型、比例、长度、材质、褶皱、穿着门槛。
+3. 如果是上身图，可以评价肩线、腰线、视觉重心、显高显瘦。
+4. 如果图片信息有限，要直接说明。
+5. 不要为了安慰用户强行建议留下。
 6. ${lengthRule}
 7. 只输出合法 JSON，不要 markdown，不要解释，不要代码块。
-8. 如果某些用户信息是“未填写”，不要抱怨信息不足；主要依据图片、判断目的和单品类型给出判断。
-9. 价格感受只作为用户心理负担和性价比感知的参考，不要直接判断商品真实定价是否合理。
-10. 如果价格感受是“有点贵”或“明显不值”，需要在闲置风险、保留价值或最终建议里体现。
-11. 如果价格感受是“不考虑价格”或“不记得价格”，不要过度讨论价格。
-12. stylingPlans 只返回 1 套最推荐方案，但这套方案里必须包含配饰建议，例如帽子、腰带、项链、耳饰、袜子、发型或眼镜，至少选择 1-2 个适合该单品的配饰。
-13. finalNote 不超过 55 个中文字符。
-14. replacementAdvice 的 suggestions 最多返回 2 条，只写替代购买方向，不要写已经在搭配里出现过的内容。
-15. sharpReview.keepCondition 最多返回 2 条，每条必须是“什么情况下值得留”。
-16. sharpReview.dropReason 最多返回 2 条，每条必须是“什么情况下不值得留”。
-17. sharpReview.oneLineReason 必须解释“为什么是这个判断”，不能只复述 headline。
-18. sharpReview.biggestProblem 必须短而准，只写一个最大问题，不要并列三四个问题。
-19. 如果一件衣服只是普通、基础、能穿但不惊艳，要直接说"普通可用""加分有限""不是高分单品"，但评分通常应在 6.8-7.4。
-20. stylingFormula 字段必须根据单品类型选择填写，只填写该类型适用的字段，不适用字段留空字符串：
-    - 连衣裙：只填 shoes、bag、color、avoid，inner 和 bottom 留空。
-    - 上衣：只填 bottom、shoes、bag、color、avoid，inner 留空。
-    - 裤子 / 半裙：只填 inner、shoes、bag、color、avoid，bottom 留空。
-    - 外套：只填 inner、bottom、shoes、bag、color，avoid 留空或合并进 shoes/bag。
-    - 套装：只填 shoes、bag、color、avoid，inner 和 bottom 留空。
-    - 鞋子：inner 填服装搭配方向，shoes 留空，bag 和 avoid 正常填写，color 填配色方向，bottom 留空。
-    - 包 / 配饰：inner 填服装搭配方向，shoes 填鞋子方向，bag 留空，color 填配色方向，bottom 留空，avoid 填避雷。
-21. 结论不要在不同字段里重复输出同义判断：
-    - headline 是一句核心判断结论。
-    - sharpReview.comment 提供更深一层的分析或取舍理由，不要复述 headline。
-    - sharpReview.oneLineReason 解释为什么是这个判断，必须包含一个图片证据，不要复述 headline 或 comment。
-    - sharpReview.biggestProblem 只写一个最拖后腿的短板，不要重复其他地方已经写过的内容。
-
-图片一致性检查要求：
-1. 必须先判断用户选择的目标单品是否可见，不要自动改判画面里最显眼的单品。
-2. 只要目标单品能看见，就围绕目标单品判断；全身图里的裤子、短裤、半裙、裙裤等下装只要露出轮廓就算可见。
-3. 只有目标单品完全看不清、被遮挡或不存在时，targetItemVisible 才能为 false。
-4. 大类可近似匹配：裤子包含短裤/裙裤/阔腿裤；外套包含衬衫式外套/薄开衫/防晒衫。
-5. visibleMainItem 填本次实际判断的目标单品。若其他单品更显眼，可在 warning 简短说明，但不要改判。
-
-穿着适配要求：
-1. 如果能看到真人试穿，必须结合衣服穿在人身上的比例效果判断，而不是只评价衣服本身。
-2. 重点看肩线、袖长、衣长、腰线、松量、视觉重心、是否显利落、是否压低视觉重心。
-3. 不评价用户身材好坏，不使用羞辱性表达；所有比例问题都归因于衣服版型、松量、长度和搭配造成的视觉效果。平铺图或商品图不要臆测体型适配。
-
-图片本身判断强制要求：
-1. visualAnalysis 四个字段必须来自图片可见信息，不要写表单结论。
-2. color 写颜色冷暖、明度、是否提气色；除非证据明显，不要写显旧。
-3. silhouette 写版型、肩线、袖长、领口、门襟、下摆。
-4. proportion 写衣长、腰线、视觉重心、是否压低视觉重心。
-5. fabricAndDetails 写垂感、挺括度、褶皱、透感、扣子、纹理；只有口袋清晰可见时才写口袋，不要写“后臀口袋隐约可见”这类别扭表述。
-6. sharpReview.biggestProblem 必须来自图片观察，只写一个最大短板。
-7. sharpReview.oneLineReason 必须包含一个图片证据。
-8. 如果需要描述比例风险，只写“衣服让视觉重心下移/横向量感增加/腰线不明确/线条不够利落”，不要写“用户显胖显矮”。
+8. score 只能是 1、2、3、4、5。
+9. 不要所有评分都给 5。
+10. 如果场景窄，实穿频率不应高于 3。
+11. 如果用户担心不好搭，搭配难度不应高于 3，除非图片显示非常百搭。
+12. 如果衣橱里很多类似单品，衣橱补充不应高。
 
 严格返回这个 JSON 结构，字段名不能改：
 
 {
-  "imageCheck": {
-    "visibleMainItem": "本次实际判断的目标单品",
-    "selectedItemType": "用户选择的单品类型",
-    "isTypeMatched": true,
-    "targetItemVisible": true,
-    "warning": "如果类型不匹配或目标单品不可见，在这里用一句话说明；如果完全匹配，写空字符串"
-  },
   "decision": {
     "label": "建议放手",
     "headline": "一句明确判断",
     "reason": "简短解释"
-  },
-  "sharpReview": {
-    "score": 6.5,
-    "comment": "能留，但它的价值主要是实用，不是提升穿搭质感。",
-    "oneLineReason": "因为颜色和版型基础可用，但图片里最明显的短板会影响利落感。",
-    "biggestProblem": "只写一个最大短板，例如：袖长盖手背，视觉重心下移",
-    "keepCondition": [
-      "什么情况下可以留",
-      "第二个保留前提"
-    ],
-    "dropReason": [
-      "什么情况下应该放弃",
-      "第二个放弃理由"
-    ]
-  },
-  "stylingFormula": {
-    "inner": "具体内搭，例如：修身背心 / 短款T恤 / 细肩带内搭",
-    "bottom": "具体下装，例如：高腰直筒牛仔裤 / 黑色短裙 / 利落西裤",
-    "shoes": "具体鞋子，例如：乐福鞋 / 德训鞋 / 薄底凉鞋",
-    "bag": "具体包包，例如：小号腋下包 / 硬挺托特 / 帆布包",
-    "color": "具体配色，例如：米白+深蓝+棕色，不要只写同色系",
-    "avoid": "具体避雷，例如：不要配同样软塌的宽松裤；同时写出适合的配饰方向"
   },
   "uiSummary": {
     "retentionValue": "中",
@@ -297,16 +71,71 @@ ${getIntentGuide(body.intent)}
     "bestScenario": "最适合场景"
   },
   "visualAnalysis": {
-    "color": "例如：米白偏暖，柔和提亮，但褶皱和发黄会更明显",
-    "silhouette": "例如：直筒微宽松衬衫版型，肩线自然但袖长略拖",
-    "proportion": "例如：衣长到胯部附近，不压身高但不强调腰线",
-    "fabricAndDetails": "例如：轻薄垂感面料，清爽但容易皱，门襟线条简洁"
+    "color": "颜色观察",
+    "silhouette": "版型轮廓观察",
+    "proportion": "比例效果观察",
+    "fabricAndDetails": "材质细节观察"
   },
+  "ratings": [
+    {
+      "label": "版型比例",
+      "score": 4,
+      "note": "评分理由"
+    },
+    {
+      "label": "颜色适配",
+      "score": 4,
+      "note": "评分理由"
+    },
+    {
+      "label": "搭配难度",
+      "score": 3,
+      "note": "评分理由"
+    },
+    {
+      "label": "实穿频率",
+      "score": 2,
+      "note": "评分理由"
+    },
+    {
+      "label": "衣橱补充",
+      "score": 4,
+      "note": "评分理由"
+    }
+  ],
+  "keepReasons": [
+    {
+      "title": "理由标题",
+      "detail": "具体理由"
+    },
+    {
+      "title": "理由标题",
+      "detail": "具体理由"
+    }
+  ],
+  "riskReasons": [
+    {
+      "title": "风险标题",
+      "detail": "具体风险"
+    },
+    {
+      "title": "风险标题",
+      "detail": "具体风险"
+    }
+  ],
   "stylingPlans": [
     {
-      "scenario": "最推荐场景",
+      "scenario": "场景一",
       "outfit": "具体穿搭",
-      "shoesAndBag": "鞋包和配饰方向，例如：乐福鞋+小号腋下包+细腰带/棒球帽/小金饰",
+      "shoesAndBag": "鞋包方向",
+      "colorDirection": "颜色方向",
+      "avoid": "避免什么",
+      "whyItWorks": "为什么有效"
+    },
+    {
+      "scenario": "场景二",
+      "outfit": "具体穿搭",
+      "shoesAndBag": "鞋包方向",
       "colorDirection": "颜色方向",
       "avoid": "避免什么",
       "whyItWorks": "为什么有效"
@@ -316,21 +145,15 @@ ${getIntentGuide(body.intent)}
     "title": "替代购买方向",
     "suggestions": [
       "具体建议一",
-      "具体建议二"
+      "具体建议二",
+      "具体建议三"
     ]
   },
   "finalNote": "最后简短建议"
 }
 
-imageCheck.visibleMainItem 应填写本次实际判断的目标单品，使用中文短词，例如：上衣、裤子、短裤、半裙、裙裤、连衣裙、外套、鞋子、包包、看不清。
-imageCheck.selectedItemType 必须等于用户选择的单品类型。
-imageCheck.isTypeMatched 和 imageCheck.targetItemVisible 必须是布尔值 true 或 false。
 label 必须从这四个里选一个：建议放手、再观察、有条件留下、值得留下。
 retentionValue、idleRisk、stylingDifficulty 必须从这三个里选一个：低、中、高。
-sharpReview.score 必须是 0 到 10 的数字，可以有一位小数；参照规则 8 的评分锚点打分，不要偏离。
-sharpReview.comment 必须直接、有判断，不要写成温和总结，也不要写“适合一部分场景”这种泛句；不要使用“撑不住”“人不精神”这类把问题归因给穿着者的表达。
-sharpReview.oneLineReason、sharpReview.biggestProblem、sharpReview.keepCondition、sharpReview.dropReason 不能互相重复。
-stylingFormula 各字段必须根据单品类型选择填写（见规则 20），不适用字段留空字符串；每个字段都要具体到可执行单品，不要只写抽象原则；avoid 字段可以同时包含"避雷"和"配饰建议"。
 `;
 }
 
@@ -342,10 +165,12 @@ function hasValidResultShape(value: unknown) {
   if (!isObject(value)) return false;
 
   return (
-    isObject(value.imageCheck) &&
     isObject(value.decision) &&
     isObject(value.uiSummary) &&
     isObject(value.visualAnalysis) &&
+    Array.isArray(value.ratings) &&
+    Array.isArray(value.keepReasons) &&
+    Array.isArray(value.riskReasons) &&
     Array.isArray(value.stylingPlans) &&
     isObject(value.replacementAdvice) &&
     typeof value.finalNote === "string"
@@ -396,7 +221,7 @@ async function callKimi(body: RequestBody, compact = false) {
         {
           role: "system",
           content:
-            "你是「留不留」中文衣橱决策助手。你必须只输出一个合法 JSON 对象，不要输出 markdown，不要解释。必须先做图片一致性检查，并让输出重点匹配用户的判断目的。",
+            "你是「留不留」中文衣橱决策助手。你必须只输出一个合法 JSON 对象，不要输出 markdown，不要解释。",
         },
         {
           role: "user",
@@ -417,7 +242,7 @@ async function callKimi(body: RequestBody, compact = false) {
         },
       ],
       temperature: 0.6,
-      max_tokens: compact ? 900 : 1200,
+      max_tokens: compact ? 2200 : 3200,
     }),
   });
 
@@ -443,19 +268,21 @@ async function callKimi(body: RequestBody, compact = false) {
 
   const content = kimiData.choices?.[0]?.message?.content;
 
-  if (!content) {
-    console.error(
-      "Kimi returned no content full response:",
-      JSON.stringify(kimiData, null, 2)
-    );
+    if (!content) {
+  console.error(
+    "Kimi returned no content full response:",
+    JSON.stringify(kimiData, null, 2)
+  );
 
-    throw new Error("Kimi 没有返回有效的判断内容。");
-  }
+  throw new Error("Kimi 没有返回有效的判断内容。");
+}
 
   return content;
 }
 
-function tryParseAndValidate(jsonText: string) {
+function parseResult(content: string) {
+  const jsonText = extractJsonObject(content);
+
   try {
     const parsed = JSON.parse(jsonText);
 
@@ -466,59 +293,46 @@ function tryParseAndValidate(jsonText: string) {
 
     return parsed;
   } catch {
+    console.error("Kimi content is not valid JSON:", content);
     return null;
   }
 }
 
-function repairCommonJsonIssues(jsonText: string) {
-  return jsonText
-    .replace(/(\}\s*)\}\s*,\s*"finalNote"/, '$1,\n  "finalNote"')
-    .replace(/,\s*}/g, "}")
-    .replace(/,\s*]/g, "]");
-}
-
-function parseResult(content: string) {
-  const jsonText = extractJsonObject(content);
-
-  const directResult = tryParseAndValidate(jsonText);
-
-  if (directResult) {
-    return directResult;
-  }
-
-  const repairedJsonText = repairCommonJsonIssues(jsonText);
-  const repairedResult = tryParseAndValidate(repairedJsonText);
-
-  if (repairedResult) {
-    console.warn("Kimi JSON 有轻微格式问题，已自动修复并继续使用。");
-    return repairedResult;
-  }
-
-  console.error("Kimi content is not valid JSON. Preview:", content.slice(0, 600));
-  return null;
-}
-
 export async function POST(request: Request) {
   try {
-    const rawBody = (await request.json()) as RequestBody;
-    const body = normalizeBody(rawBody);
+    const body = (await request.json()) as RequestBody;
 
-    if (!body.intent || !body.itemType || !body.imageDataUrl) {
+    if (
+      !body.itemType ||
+      !body.concern ||
+      !body.feeling ||
+      !body.similarItems ||
+      !body.scenario
+    ) {
       return NextResponse.json(
         { error: "缺少必填的判断信息。" },
         { status: 400 }
       );
     }
 
-    const content = await callKimi(body, true);
-    const result = parseResult(content);
+    const firstContent = await callKimi(body, false);
+    const firstResult = parseResult(firstContent);
 
-    if (result) {
-      return NextResponse.json(result);
+    if (firstResult) {
+      return NextResponse.json(firstResult);
+    }
+
+    console.warn("第一次 Kimi JSON 解析失败，开始使用压缩模式重试。");
+
+    const secondContent = await callKimi(body, true);
+    const secondResult = parseResult(secondContent);
+
+    if (secondResult) {
+      return NextResponse.json(secondResult);
     }
 
     return NextResponse.json(
-      { error: "这次结果生成失败，可以重新点击一次，或换一张更清晰、主体更明确的图片。" },
+      { error: "Kimi 返回的判断结果不是有效 JSON。请重新生成一次。" },
       { status: 502 }
     );
   } catch (error) {
