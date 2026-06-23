@@ -826,6 +826,27 @@ export default function Result() {
     ctx.closePath();
   }
 
+  function drawImageCover(
+    ctx: CanvasRenderingContext2D,
+    img: HTMLImageElement,
+    x: number,
+    y: number,
+    w: number,
+    h: number
+  ) {
+    const imgRatio = img.naturalWidth / img.naturalHeight;
+    const boxRatio = w / h;
+    let sx = 0, sy = 0, sw = img.naturalWidth, sh = img.naturalHeight;
+    if (imgRatio > boxRatio) {
+      sw = img.naturalHeight * boxRatio;
+      sx = (img.naturalWidth - sw) / 2;
+    } else {
+      sh = img.naturalWidth / boxRatio;
+      sy = (img.naturalHeight - sh) / 2;
+    }
+    ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+  }
+
   function drawWrappedText(
     ctx: CanvasRenderingContext2D,
     text: string,
@@ -835,10 +856,9 @@ export default function Result() {
     lineHeight: number,
     maxLines = 5
   ) {
-    const chars = text.split("");
     let line = "";
     const lines: string[] = [];
-    for (const ch of chars) {
+    for (const ch of text) {
       const test = line + ch;
       if (ctx.measureText(test).width > maxWidth && line.length > 0) {
         lines.push(line);
@@ -848,221 +868,207 @@ export default function Result() {
       }
     }
     if (line) lines.push(line);
-    lines.slice(0, maxLines).forEach((l, i) => {
-      ctx.fillText(l, x, y + i * lineHeight);
-    });
-    return y + Math.min(lines.length, maxLines) * lineHeight;
+    const shown = lines.slice(0, maxLines);
+    shown.forEach((l, i) => ctx.fillText(l, x, y + i * lineHeight));
+    return y + shown.length * lineHeight;
   }
 
   async function generateShareImageCanvas(
     imageDataUrl?: string
   ): Promise<string> {
-    const W = 1500;
-    const pad = 100;
-    const innerW = W - pad * 2;
-    let y = 90;
+    const W = 750;
+    const H = 1800;
+    const DPR = 2;
+    const M = 48;
+    const CW = W - M * 2;
 
     const canvas = document.createElement("canvas");
-    canvas.width = W;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("Canvas not supported");
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    const ctx = canvas.getContext("2d")!;
+    ctx.scale(DPR, DPR);
 
-    // Scale factor for fonts (1500 / 720 ≈ 2.08)
-    const S = W / 720;
-
-    // ── Background + rounded card ──
+    // Background
     ctx.fillStyle = "#f7f4f0";
-    ctx.fillRect(0, 0, W, 3000);
-    ctx.fillStyle = "#fffefd";
-    drawRoundRect(ctx, pad - 10, y - 40, innerW + 20, 2600, 48 * S);
-    ctx.fill();
-    ctx.save();
-    drawRoundRect(ctx, pad - 10, y - 40, innerW + 20, 2600, 48 * S);
-    ctx.clip();
+    ctx.fillRect(0, 0, W, H);
+
+    let y = 60;
 
     // ── Header ──
     ctx.fillStyle = "#2f2926";
-    ctx.font = `620 ${30 * S}px -apple-system, "PingFang SC", sans-serif`;
-    ctx.fillText("留不留", pad, y);
+    ctx.font = "620 28px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
+    ctx.fillText("留不留", M, y + 24);
 
     ctx.fillStyle = "#8c827d";
-    ctx.font = `560 ${22 * S}px -apple-system, "PingFang SC", sans-serif`;
+    ctx.font = "560 20px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
     ctx.textAlign = "right";
-    ctx.fillText("PERSONAL FIT REVIEW", W - pad, y);
+    ctx.fillText("PERSONAL FIT REVIEW", W - M, y + 24);
     ctx.textAlign = "left";
+    y = 120;
 
     // Divider
-    y += 36 * S;
     ctx.strokeStyle = "#e8e0da";
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(pad, y);
-    ctx.lineTo(W - pad, y);
+    ctx.moveTo(M, y);
+    ctx.lineTo(W - M, y);
     ctx.stroke();
-    y += 36 * S;
-
-    // ── Image ──
-    if (imageDataUrl) {
-      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-        const i = new Image();
-        i.onload = () => resolve(i);
-        i.onerror = () => reject(new Error("图片加载失败"));
-        i.src = imageDataUrl;
-      });
-
-      const imgW = innerW;
-      const imgH = 520 * S;
-      const targetRatio = imgW / imgH;
-      const sourceRatio = img.naturalWidth / img.naturalHeight;
-
-      let sx = 0, sy = 0, sw = img.naturalWidth, sh = img.naturalHeight;
-      if (sourceRatio > targetRatio) {
-        sw = img.naturalHeight * targetRatio;
-        sx = (img.naturalWidth - sw) / 2;
-      } else {
-        sh = img.naturalWidth / targetRatio;
-        sy = (img.naturalHeight - sh) / 2;
-      }
-
-      // Rounded clip for image
-      ctx.save();
-      drawRoundRect(ctx, pad, y, imgW, imgH, 36 * S);
-      ctx.clip();
-      ctx.drawImage(img, sx, sy, sw, sh, pad, y, imgW, imgH);
-      ctx.restore();
-
-      // Border
-      ctx.strokeStyle = "#e8e0da";
-      ctx.lineWidth = 2;
-      drawRoundRect(ctx, pad, y, imgW, imgH, 36 * S);
-      ctx.stroke();
-
-      y += imgH + 30 * S;
-    }
+    y = 170;
 
     // ── Verdict ──
     const verdictWord = getVerdictWord(decisionLabel, formData?.intent);
     ctx.fillStyle = "#2f2926";
-    ctx.font = `520 ${100 * S}px -apple-system, "PingFang SC", sans-serif`;
-    ctx.fillText(verdictWord, pad, y + 80 * S);
-    y += 120 * S;
+    ctx.font = "520 90px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
+    ctx.fillText(verdictWord, M, y + 70);
+    y = 270;
 
-    // ── Score row ──
+    // ── Score ──
     const scoreTitle = getScoreTitle(formData?.intent);
     ctx.fillStyle = "#9b6572";
-    ctx.font = `650 ${22 * S}px -apple-system, "PingFang SC", sans-serif`;
-    ctx.fillText(scoreTitle, pad, y + 18 * S);
+    ctx.font = "650 18px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
+    ctx.fillText(scoreTitle, M, y + 16);
 
     const scoreText = formatScore10(sharpScore);
     ctx.fillStyle = "#2f2926";
-    ctx.font = `470 ${96 * S}px -apple-system, "PingFang SC", sans-serif`;
-    ctx.fillText(scoreText, pad, y + 96 * S);
+    ctx.font = "470 80px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
+    ctx.fillText(scoreText, M, y + 80);
+    const scW = ctx.measureText(scoreText).width;
 
     ctx.fillStyle = "#8c827d";
-    ctx.font = `500 ${44 * S}px -apple-system, "PingFang SC", sans-serif`;
-    const sw = ctx.measureText(scoreText).width;
-    ctx.fillText("/ 10", pad + sw + 16 * S, y + 96 * S);
-    y += 120 * S;
+    ctx.font = "500 38px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
+    ctx.fillText("/ 10", M + scW + 12, y + 80);
+    y = 380;
+
+    // ── Image ──
+    const imgX = M + 16;
+    const imgY = y;
+    const imgW = CW - 32;
+    const imgH = 580;
+
+    if (imageDataUrl) {
+      try {
+        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const i = new Image();
+          i.onload = () => resolve(i);
+          i.onerror = () => reject(new Error("load failed"));
+          i.src = imageDataUrl;
+        });
+        ctx.save();
+        drawRoundRect(ctx, imgX, imgY, imgW, imgH, 32);
+        ctx.clip();
+        drawImageCover(ctx, img, imgX, imgY, imgW, imgH);
+        ctx.restore();
+        ctx.strokeStyle = "#e8e0da";
+        ctx.lineWidth = 2;
+        drawRoundRect(ctx, imgX, imgY, imgW, imgH, 32);
+        ctx.stroke();
+      } catch {
+        ctx.fillStyle = "#f2eee9";
+        drawRoundRect(ctx, imgX, imgY, imgW, imgH, 32);
+        ctx.fill();
+        ctx.fillStyle = "#8c827d";
+        ctx.font = "24px -apple-system, PingFang SC, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("图片加载失败", W / 2, imgY + imgH / 2);
+        ctx.textAlign = "left";
+      }
+    } else {
+      ctx.fillStyle = "#f2eee9";
+      drawRoundRect(ctx, imgX, imgY, imgW, imgH, 32);
+      ctx.fill();
+      ctx.fillStyle = "#8c827d";
+      ctx.font = "24px -apple-system, PingFang SC, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("暂无图片", W / 2, imgY + imgH / 2);
+      ctx.textAlign = "left";
+    }
+    y = imgY + imgH + 36;
 
     // ── Summary ──
     ctx.fillStyle = "#514946";
-    ctx.font = `390 ${34 * S}px -apple-system, "PingFang SC", sans-serif`;
-    y = drawWrappedText(ctx, sharpComment, pad, y + 30 * S, innerW, 46 * S, 3) + 30 * S;
+    ctx.font = "390 32px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
+    y = drawWrappedText(ctx, sharpComment, M, y, CW, 44, 4) + 36;
 
     // ── Scene ──
     ctx.strokeStyle = "#e8e0da";
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(pad, y);
-    ctx.lineTo(W - pad, y);
+    ctx.moveTo(M, y);
+    ctx.lineTo(W - M, y);
     ctx.stroke();
-    y += 36 * S;
+    y += 32;
 
     ctx.fillStyle = "#9b6572";
-    ctx.font = `650 ${22 * S}px -apple-system, "PingFang SC", sans-serif`;
-    ctx.fillText("适合场景", pad, y);
-    y += 36 * S;
+    ctx.font = "650 18px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
+    ctx.fillText("适合场景", M, y);
+    y += 32;
 
     ctx.fillStyle = "#5c534f";
-    ctx.font = `430 ${30 * S}px -apple-system, "PingFang SC", sans-serif`;
-    ctx.fillText(result?.uiSummary?.bestScenario || "", pad, y);
-    y += 50 * S;
+    ctx.font = "430 28px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
+    const sceneText = result?.uiSummary?.bestScenario || "";
+    ctx.fillText(sceneText, M, y);
+    y += 48;
 
     // ── Styling RX ──
     if (shareRxItems.length > 0 || shareRxIntro) {
       ctx.strokeStyle = "#e8e0da";
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(pad, y);
-      ctx.lineTo(W - pad, y);
+      ctx.moveTo(M, y);
+      ctx.lineTo(W - M, y);
       ctx.stroke();
-      y += 30 * S;
+      y += 30;
 
       ctx.fillStyle = "#9b6572";
-      ctx.font = `650 ${20 * S}px -apple-system, "PingFang SC", sans-serif`;
-      ctx.fillText("造型处方", pad, y);
+      ctx.font = "650 18px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
+      ctx.fillText("造型处方", M, y);
       ctx.fillStyle = "#8c827d";
+      ctx.font = "560 16px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
       ctx.textAlign = "right";
-      ctx.font = `560 ${18 * S}px -apple-system, "PingFang SC", sans-serif`;
-      ctx.fillText("STYLING RX", W - pad, y);
+      ctx.fillText("STYLING RX", W - M, y);
       ctx.textAlign = "left";
-      y += 36 * S;
+      y += 34;
 
       if (shareRxIntro) {
         ctx.fillStyle = "#3f3935";
-        ctx.font = `520 ${26 * S}px -apple-system, "PingFang SC", sans-serif`;
-        y = drawWrappedText(ctx, shareRxIntro, pad, y, innerW, 36 * S, 2) + 16 * S;
+        ctx.font = "520 24px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
+        y = drawWrappedText(ctx, shareRxIntro, M, y, CW, 34, 2) + 14;
       }
 
       shareRxItems.forEach((item, idx) => {
         const num = String(idx + 1).padStart(2, "0");
         ctx.fillStyle = "#9b6572";
-        ctx.font = `520 ${28 * S}px -apple-system, "PingFang SC", sans-serif`;
-        ctx.fillText(num, pad, y + 24 * S);
-        ctx.fillText(item.label, pad + 48 * S, y + 24 * S);
+        ctx.font = "520 24px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
+        ctx.fillText(num, M, y + 20);
+        ctx.fillText(item.label, M + 40, y + 20);
         ctx.fillStyle = "#403936";
-        ctx.font = `440 ${26 * S}px -apple-system, "PingFang SC", sans-serif`;
+        ctx.font = "440 24px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
         const lw = ctx.measureText(item.label).width;
-        ctx.fillText(
-          item.value,
-          pad + 48 * S + lw + 12 * S,
-          y + 24 * S
-        );
-        y += 40 * S;
+        ctx.fillText(item.value.slice(0, 30), M + 40 + lw + 10, y + 20);
+        y += 36;
       });
 
       if (shareColorDir) {
-        y += 8 * S;
+        y += 8;
         ctx.fillStyle = "#9b6572";
-        ctx.font = `650 ${20 * S}px -apple-system, "PingFang SC", sans-serif`;
-        ctx.fillText("●  ●  ●  配色方向", pad, y);
-        y += 30 * S;
+        ctx.font = "650 18px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
+        ctx.fillText("●  ●  ●  配色方向", M, y);
+        y += 28;
         ctx.fillStyle = "#5c534f";
-        ctx.font = `400 ${26 * S}px -apple-system, "PingFang SC", sans-serif`;
-        ctx.fillText(shareColorDir, pad, y);
-        y += 36 * S;
+        ctx.font = "400 24px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
+        ctx.fillText(shareColorDir, M, y);
+        y += 30;
       }
     }
 
     // ── URL ──
-    y += 20 * S;
     ctx.fillStyle = "#a1958e";
-    ctx.font = `500 ${22 * S}px -apple-system, "PingFang SC", sans-serif`;
+    ctx.font = "500 20px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("www.liubuliu.com.cn", W / 2, y);
+    ctx.fillText("www.liubuliu.com.cn", W / 2, H - 60);
     ctx.textAlign = "left";
 
-    ctx.restore();
-
-    // Crop to actual content
-    const finalH = Math.ceil(y + 80);
-    const finalCanvas = document.createElement("canvas");
-    finalCanvas.width = W;
-    finalCanvas.height = finalH;
-    const fctx = finalCanvas.getContext("2d")!;
-    fctx.drawImage(canvas, 0, 0, W, finalH, 0, 0, W, finalH);
-
-    return finalCanvas.toDataURL("image/png");
+    return canvas.toDataURL("image/png");
   }
 
   const handleDownloadShare = async () => {
