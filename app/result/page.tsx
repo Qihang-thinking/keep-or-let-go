@@ -991,35 +991,51 @@ export default function Result() {
     setIsGeneratingShare(true);
 
     try {
-      // Wait for fonts
-      await document.fonts?.ready;
-      await new Promise((resolve) => requestAnimationFrame(resolve));
+      const node = shareCardRef.current;
+      if (!node) throw new Error("卡片未渲染");
 
-      // Wait for all images in share card to load
-      const cardImages = Array.from(shareCardRef.current?.querySelectorAll("img") || []);
+      // Wait for all images to fully load and decode
+      const imgs = Array.from(node.querySelectorAll("img"));
       await Promise.all(
-        cardImages.map((img) => {
-          if (img.complete && img.naturalWidth > 0) return Promise.resolve();
-          return new Promise<void>((resolve, reject) => {
-            img.onload = () => resolve();
-            img.onerror = () => reject(new Error("图片加载失败"));
+        imgs.map(async (img) => {
+          if (img.complete && img.naturalWidth > 0) {
+            if (img.decode) {
+              try { await img.decode(); } catch { /* ignore */ }
+            }
+            return;
+          }
+          return new Promise<void>((resolve) => {
+            img.onload = () => {
+              if (img.decode) {
+                img.decode().catch(() => {}).finally(resolve);
+              } else {
+                resolve();
+              }
+            };
+            img.onerror = () => resolve();
           });
         })
       );
 
+      // Wait for fonts
+      await document.fonts?.ready;
+
+      // Double RAF to ensure layout is painted
+      await new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve))
+      );
+
       let dataUrl: string | null = null;
 
-      // Try DOM screenshot
-      if (shareCardRef.current) {
-        try {
-          dataUrl = await toPng(shareCardRef.current, {
-            pixelRatio: 2,
-            backgroundColor: "#fffefd",
-            cacheBust: true,
-          });
-        } catch {
-          // Fall through
-        }
+      // Try DOM screenshot first
+      try {
+        dataUrl = await toPng(node, {
+          pixelRatio: 2,
+          backgroundColor: "#fffefd",
+          cacheBust: true,
+        });
+      } catch {
+        // Fall through
       }
 
       // Canvas fallback
