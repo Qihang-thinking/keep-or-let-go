@@ -812,9 +812,13 @@ export default function Result() {
         rxItems: shareRxItems,
         colorDir: shareColorDir,
       });
+      if (!dataUrl.startsWith("data:image/png")) {
+        throw new Error("generated image is not a valid PNG: " + dataUrl.slice(0, 50));
+      }
       setGeneratedShareImage(dataUrl);
-    } catch {
-      setShareError("分享图生成失败，请稍后再试。");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "分享图生成失败，请稍后再试。";
+      setShareError(msg);
     } finally {
       setIsGeneratingShare(false);
     }
@@ -1303,9 +1307,16 @@ export default function Result() {
               className={styles.shareModalPanel}
               onClick={(e) => e.stopPropagation()}
             >
+              {/* DEBUG: verify shareImageUrl is a real PNG data URL */}
+              <p style={{ fontSize: 10, color: "#c4bab6", margin: 0, wordBreak: "break-all", lineHeight: 1.3 }}>
+                debug: shareImageUrl={generatedShareImage
+                  ? `exists (starts with ${generatedShareImage.slice(0, 30)}...)`
+                  : "empty"}
+              </p>
+
               {isGeneratingShare ? (
                 <p className={styles.shareHint}>正在生成分享图…</p>
-              ) : generatedShareImage ? (
+              ) : generatedShareImage && generatedShareImage.startsWith("data:image/png") ? (
                 <>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -1313,9 +1324,6 @@ export default function Result() {
                     src={generatedShareImage}
                     alt="留不留分享图"
                   />
-                  <p className={styles.shareHint}>
-                    长按图片保存到相册
-                  </p>
                   <button
                     type="button"
                     className={styles.shareDownloadButton}
@@ -1323,15 +1331,18 @@ export default function Result() {
                   >
                     分享 / 保存图片
                   </button>
-                  <button
-                    type="button"
-                    className={styles.shareCloseButton}
-                    onClick={handleCloseModal}
-                  >
-                    关闭
-                  </button>
                 </>
-              ) : null}
+              ) : (
+                <p className={styles.shareHint}>分享图生成失败，请重试</p>
+              )}
+
+              <button
+                type="button"
+                className={styles.shareCloseButton}
+                onClick={handleCloseModal}
+              >
+                关闭
+              </button>
 
               {shareError && (
                 <p className={styles.shareError}>{shareError}</p>
