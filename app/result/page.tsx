@@ -2,7 +2,6 @@
 
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toPng } from "html-to-image";
 import styles from "./page.module.css";
 
 type DecisionLabel = "建议放手" | "再观察" | "有条件留下" | "值得留下";
@@ -806,183 +805,264 @@ export default function Result() {
     setGeneratedShareImage("");
   };
 
-  function drawShareCardToCanvas(
-    canvas: HTMLCanvasElement,
+  function drawRoundRect(
     ctx: CanvasRenderingContext2D,
-    width: number,
-    imageDataUrl?: string
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    r: number
   ) {
-    const cardWidth = 720;
-    const scale = width / cardWidth;
-    let y = 48;
-
-    // Background
-    ctx.fillStyle = "#fffefd";
-    ctx.fillRect(0, 0, width, canvas.height);
-
-    // ─ Header: 留不留 │ PERSONAL FIT REVIEW ─
-    ctx.fillStyle = "#2f2926";
-    ctx.font = `${14 * scale}px -apple-system, "PingFang SC", sans-serif`;
-    ctx.fillText("留不留", 52 * scale, y + 14 * scale);
-
-    ctx.fillStyle = "#8c827d";
-    ctx.font = `500 ${11 * scale}px -apple-system, "PingFang SC", sans-serif`;
-    ctx.textAlign = "right";
-    ctx.fillText("PERSONAL FIT REVIEW", (cardWidth - 52) * scale, y + 14 * scale);
-    ctx.textAlign = "left";
-
-    // Divider
-    y += 32 * scale;
-    ctx.strokeStyle = "#e8e0da";
-    ctx.lineWidth = 1 * scale;
     ctx.beginPath();
-    ctx.moveTo(52 * scale, y);
-    ctx.lineTo((cardWidth - 52) * scale, y);
-    ctx.stroke();
-    y += 22 * scale;
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+    ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x, y + h, x, y + h - r, r);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.closePath();
+  }
 
-    // ─ Image (if available) ─
-    if (imageDataUrl) {
-      const imgW = (cardWidth - 104) * scale;
-      const imgH = 280 * scale;
-      ctx.fillStyle = "#e8e0da";
-      ctx.fillRect(52 * scale, y, imgW, imgH);
-      y += imgH + 20 * scale;
-    }
-
-    // ─ Verdict ─
-    const verdictWord = getVerdictWord(decisionLabel, formData?.intent);
-    ctx.fillStyle = "#2f2926";
-    ctx.font = `520 ${52 * scale}px -apple-system, "PingFang SC", sans-serif`;
-    ctx.fillText(verdictWord, 52 * scale, y + 42 * scale);
-    y += 52 * scale + 14 * scale;
-
-    // ─ Score ─
-    ctx.fillStyle = "#9b6572";
-    ctx.font = `650 ${12 * scale}px -apple-system, "PingFang SC", sans-serif`;
-    const scoreTitle = getScoreTitle(formData?.intent);
-    ctx.fillText(scoreTitle, 52 * scale, y);
-    y += 20 * scale;
-
-    const scoreText = `${formatScore10(sharpScore)}`;
-    ctx.fillStyle = "#2f2926";
-    ctx.font = `470 ${60 * scale}px -apple-system, "PingFang SC", sans-serif`;
-    ctx.fillText(scoreText, 52 * scale, y + 48 * scale);
-    ctx.fillStyle = "#8c827d";
-    ctx.font = `500 ${20 * scale}px -apple-system, "PingFang SC", sans-serif`;
-    const slash10 = "/ 10";
-    const scoreW = ctx.measureText(scoreText).width;
-    ctx.fillText(slash10, 52 * scale + scoreW + 4 * scale, y + 48 * scale);
-    y += 60 * scale + 28 * scale;
-
-    // ─ Summary ─
-    ctx.fillStyle = "#514946";
-    ctx.font = `390 ${17 * scale}px -apple-system, "PingFang SC", sans-serif`;
-    const summary = sharpComment;
-    const maxSW = (cardWidth - 104) * scale;
-    const words = summary.split("");
+  function drawWrappedText(
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    x: number,
+    y: number,
+    maxWidth: number,
+    lineHeight: number,
+    maxLines = 5
+  ) {
+    const chars = text.split("");
     let line = "";
     const lines: string[] = [];
-    for (const char of words) {
-      const test = line + char;
-      if (ctx.measureText(test).width > maxSW && line.length > 0) {
+    for (const ch of chars) {
+      const test = line + ch;
+      if (ctx.measureText(test).width > maxWidth && line.length > 0) {
         lines.push(line);
-        line = char;
+        line = ch;
       } else {
         line = test;
       }
     }
     if (line) lines.push(line);
-    const lh = 1.8 * 17 * scale;
-    lines.slice(0, 3).forEach((l, i) => {
-      ctx.fillText(l, 52 * scale, y + i * lh);
+    lines.slice(0, maxLines).forEach((l, i) => {
+      ctx.fillText(l, x, y + i * lineHeight);
     });
-    y += lines.slice(0, 3).length * lh + 20 * scale;
+    return y + Math.min(lines.length, maxLines) * lineHeight;
+  }
 
-    // ─ Divider + Scene ─
+  async function generateShareImageCanvas(
+    imageDataUrl?: string
+  ): Promise<string> {
+    const W = 1500;
+    const pad = 100;
+    const innerW = W - pad * 2;
+    let y = 90;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = W;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas not supported");
+
+    // Scale factor for fonts (1500 / 720 ≈ 2.08)
+    const S = W / 720;
+
+    // ── Background + rounded card ──
+    ctx.fillStyle = "#f7f4f0";
+    ctx.fillRect(0, 0, W, 3000);
+    ctx.fillStyle = "#fffefd";
+    drawRoundRect(ctx, pad - 10, y - 40, innerW + 20, 2600, 48 * S);
+    ctx.fill();
+    ctx.save();
+    drawRoundRect(ctx, pad - 10, y - 40, innerW + 20, 2600, 48 * S);
+    ctx.clip();
+
+    // ── Header ──
+    ctx.fillStyle = "#2f2926";
+    ctx.font = `620 ${30 * S}px -apple-system, "PingFang SC", sans-serif`;
+    ctx.fillText("留不留", pad, y);
+
+    ctx.fillStyle = "#8c827d";
+    ctx.font = `560 ${22 * S}px -apple-system, "PingFang SC", sans-serif`;
+    ctx.textAlign = "right";
+    ctx.fillText("PERSONAL FIT REVIEW", W - pad, y);
+    ctx.textAlign = "left";
+
+    // Divider
+    y += 36 * S;
     ctx.strokeStyle = "#e8e0da";
-    ctx.lineWidth = 1 * scale;
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(52 * scale, y);
-    ctx.lineTo((cardWidth - 52) * scale, y);
+    ctx.moveTo(pad, y);
+    ctx.lineTo(W - pad, y);
     ctx.stroke();
-    y += 18 * scale;
+    y += 36 * S;
 
-    ctx.fillStyle = "#9b6572";
-    ctx.font = `650 ${11 * scale}px -apple-system, "PingFang SC", sans-serif`;
-    ctx.fillText("适合场景", 52 * scale, y + 11 * scale);
-    y += 22 * scale;
-
-    ctx.fillStyle = "#5c534f";
-    ctx.font = `430 ${16 * scale}px -apple-system, "PingFang SC", sans-serif`;
-    const sceneText = result?.uiSummary?.bestScenario || "";
-    ctx.fillText(sceneText, 52 * scale, y + 12 * scale);
-    y += 30 * scale;
-
-    // ─ Divider + Styling RX (if available) ─
-    if (shareRxItems.length > 0 || shareRxIntro) {
-      ctx.strokeStyle = "#e8e0da";
-      ctx.lineWidth = 1 * scale;
-      ctx.beginPath();
-      ctx.moveTo(52 * scale, y);
-      ctx.lineTo((cardWidth - 52) * scale, y);
-      ctx.stroke();
-      y += 18 * scale;
-
-      // Rx header
-      ctx.fillStyle = "#9b6572";
-      ctx.font = `650 ${10 * scale}px -apple-system, "PingFang SC", sans-serif`;
-      ctx.fillText("造型处方", 52 * scale, y + 10 * scale);
-      ctx.fillStyle = "#8c827d";
-      ctx.textAlign = "right";
-      ctx.fillText("STYLING RX", (cardWidth - 52) * scale, y + 10 * scale);
-      ctx.textAlign = "left";
-      y += 24 * scale;
-
-      // Rx intro
-      if (shareRxIntro) {
-        ctx.fillStyle = "#3f3935";
-        ctx.font = `520 ${13 * scale}px -apple-system, "PingFang SC", sans-serif`;
-        ctx.fillText(shareRxIntro, 52 * scale, y);
-        y += 20 * scale;
-      }
-
-      // Rx items
-      shareRxItems.forEach((item, idx) => {
-        ctx.fillStyle = "#9b6572";
-        ctx.font = `520 ${14 * scale}px -apple-system, "PingFang SC", sans-serif`;
-        const num = String(idx + 1).padStart(2, "0");
-        ctx.fillText(num, 52 * scale, y + 12 * scale);
-        ctx.fillText(item.label, 82 * scale, y + 12 * scale);
-        ctx.fillStyle = "#403936";
-        ctx.font = `440 ${13 * scale}px -apple-system, "PingFang SC", sans-serif`;
-        const labelW = ctx.measureText(item.label).width;
-        ctx.fillText(item.value, 82 * scale + labelW + 8 * scale, y + 12 * scale);
-        y += 22 * scale;
+    // ── Image ──
+    if (imageDataUrl) {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const i = new Image();
+        i.onload = () => resolve(i);
+        i.onerror = () => reject(new Error("图片加载失败"));
+        i.src = imageDataUrl;
       });
 
-      // Color direction
-      if (shareColorDir) {
-        y += 4 * scale;
-        ctx.fillStyle = "#9b6572";
-        ctx.font = `650 ${10 * scale}px -apple-system, "PingFang SC", sans-serif`;
-        ctx.fillText("● ● ● 配色方向", 52 * scale, y + 10 * scale);
-        y += 18 * scale;
-        ctx.fillStyle = "#5c534f";
-        ctx.font = `400 ${13 * scale}px -apple-system, "PingFang SC", sans-serif`;
-        ctx.fillText(shareColorDir, 52 * scale, y);
-        y += 16 * scale;
+      const imgW = innerW;
+      const imgH = 520 * S;
+      const targetRatio = imgW / imgH;
+      const sourceRatio = img.naturalWidth / img.naturalHeight;
+
+      let sx = 0, sy = 0, sw = img.naturalWidth, sh = img.naturalHeight;
+      if (sourceRatio > targetRatio) {
+        sw = img.naturalHeight * targetRatio;
+        sx = (img.naturalWidth - sw) / 2;
+      } else {
+        sh = img.naturalWidth / targetRatio;
+        sy = (img.naturalHeight - sh) / 2;
       }
 
-      y += 8 * scale;
+      // Rounded clip for image
+      ctx.save();
+      drawRoundRect(ctx, pad, y, imgW, imgH, 36 * S);
+      ctx.clip();
+      ctx.drawImage(img, sx, sy, sw, sh, pad, y, imgW, imgH);
+      ctx.restore();
+
+      // Border
+      ctx.strokeStyle = "#e8e0da";
+      ctx.lineWidth = 2;
+      drawRoundRect(ctx, pad, y, imgW, imgH, 36 * S);
+      ctx.stroke();
+
+      y += imgH + 30 * S;
     }
 
-    // ─ URL footer ─
+    // ── Verdict ──
+    const verdictWord = getVerdictWord(decisionLabel, formData?.intent);
+    ctx.fillStyle = "#2f2926";
+    ctx.font = `520 ${100 * S}px -apple-system, "PingFang SC", sans-serif`;
+    ctx.fillText(verdictWord, pad, y + 80 * S);
+    y += 120 * S;
+
+    // ── Score row ──
+    const scoreTitle = getScoreTitle(formData?.intent);
+    ctx.fillStyle = "#9b6572";
+    ctx.font = `650 ${22 * S}px -apple-system, "PingFang SC", sans-serif`;
+    ctx.fillText(scoreTitle, pad, y + 18 * S);
+
+    const scoreText = formatScore10(sharpScore);
+    ctx.fillStyle = "#2f2926";
+    ctx.font = `470 ${96 * S}px -apple-system, "PingFang SC", sans-serif`;
+    ctx.fillText(scoreText, pad, y + 96 * S);
+
+    ctx.fillStyle = "#8c827d";
+    ctx.font = `500 ${44 * S}px -apple-system, "PingFang SC", sans-serif`;
+    const sw = ctx.measureText(scoreText).width;
+    ctx.fillText("/ 10", pad + sw + 16 * S, y + 96 * S);
+    y += 120 * S;
+
+    // ── Summary ──
+    ctx.fillStyle = "#514946";
+    ctx.font = `390 ${34 * S}px -apple-system, "PingFang SC", sans-serif`;
+    y = drawWrappedText(ctx, sharpComment, pad, y + 30 * S, innerW, 46 * S, 3) + 30 * S;
+
+    // ── Scene ──
+    ctx.strokeStyle = "#e8e0da";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(pad, y);
+    ctx.lineTo(W - pad, y);
+    ctx.stroke();
+    y += 36 * S;
+
+    ctx.fillStyle = "#9b6572";
+    ctx.font = `650 ${22 * S}px -apple-system, "PingFang SC", sans-serif`;
+    ctx.fillText("适合场景", pad, y);
+    y += 36 * S;
+
+    ctx.fillStyle = "#5c534f";
+    ctx.font = `430 ${30 * S}px -apple-system, "PingFang SC", sans-serif`;
+    ctx.fillText(result?.uiSummary?.bestScenario || "", pad, y);
+    y += 50 * S;
+
+    // ── Styling RX ──
+    if (shareRxItems.length > 0 || shareRxIntro) {
+      ctx.strokeStyle = "#e8e0da";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(pad, y);
+      ctx.lineTo(W - pad, y);
+      ctx.stroke();
+      y += 30 * S;
+
+      ctx.fillStyle = "#9b6572";
+      ctx.font = `650 ${20 * S}px -apple-system, "PingFang SC", sans-serif`;
+      ctx.fillText("造型处方", pad, y);
+      ctx.fillStyle = "#8c827d";
+      ctx.textAlign = "right";
+      ctx.font = `560 ${18 * S}px -apple-system, "PingFang SC", sans-serif`;
+      ctx.fillText("STYLING RX", W - pad, y);
+      ctx.textAlign = "left";
+      y += 36 * S;
+
+      if (shareRxIntro) {
+        ctx.fillStyle = "#3f3935";
+        ctx.font = `520 ${26 * S}px -apple-system, "PingFang SC", sans-serif`;
+        y = drawWrappedText(ctx, shareRxIntro, pad, y, innerW, 36 * S, 2) + 16 * S;
+      }
+
+      shareRxItems.forEach((item, idx) => {
+        const num = String(idx + 1).padStart(2, "0");
+        ctx.fillStyle = "#9b6572";
+        ctx.font = `520 ${28 * S}px -apple-system, "PingFang SC", sans-serif`;
+        ctx.fillText(num, pad, y + 24 * S);
+        ctx.fillText(item.label, pad + 48 * S, y + 24 * S);
+        ctx.fillStyle = "#403936";
+        ctx.font = `440 ${26 * S}px -apple-system, "PingFang SC", sans-serif`;
+        const lw = ctx.measureText(item.label).width;
+        ctx.fillText(
+          item.value,
+          pad + 48 * S + lw + 12 * S,
+          y + 24 * S
+        );
+        y += 40 * S;
+      });
+
+      if (shareColorDir) {
+        y += 8 * S;
+        ctx.fillStyle = "#9b6572";
+        ctx.font = `650 ${20 * S}px -apple-system, "PingFang SC", sans-serif`;
+        ctx.fillText("●  ●  ●  配色方向", pad, y);
+        y += 30 * S;
+        ctx.fillStyle = "#5c534f";
+        ctx.font = `400 ${26 * S}px -apple-system, "PingFang SC", sans-serif`;
+        ctx.fillText(shareColorDir, pad, y);
+        y += 36 * S;
+      }
+    }
+
+    // ── URL ──
+    y += 20 * S;
     ctx.fillStyle = "#a1958e";
-    ctx.font = `500 ${11 * scale}px -apple-system, "PingFang SC", sans-serif`;
+    ctx.font = `500 ${22 * S}px -apple-system, "PingFang SC", sans-serif`;
     ctx.textAlign = "center";
-    ctx.fillText("www.liubuliu.com.cn", (cardWidth / 2) * scale, y);
+    ctx.fillText("www.liubuliu.com.cn", W / 2, y);
     ctx.textAlign = "left";
+
+    ctx.restore();
+
+    // Crop to actual content
+    const finalH = Math.ceil(y + 80);
+    const finalCanvas = document.createElement("canvas");
+    finalCanvas.width = W;
+    finalCanvas.height = finalH;
+    const fctx = finalCanvas.getContext("2d")!;
+    fctx.drawImage(canvas, 0, 0, W, finalH, 0, 0, W, finalH);
+
+    return finalCanvas.toDataURL("image/png");
   }
 
   const handleDownloadShare = async () => {
@@ -991,75 +1071,11 @@ export default function Result() {
     setIsGeneratingShare(true);
 
     try {
-      const node = shareCardRef.current;
-      if (!node) throw new Error("卡片未渲染");
+      const dataUrl = await generateShareImageCanvas(formData?.imageDataUrl);
 
-      // Wait for all images to fully load and decode
-      const imgs = Array.from(node.querySelectorAll("img"));
-      await Promise.all(
-        imgs.map(async (img) => {
-          if (img.complete && img.naturalWidth > 0) {
-            if (img.decode) {
-              try { await img.decode(); } catch { /* ignore */ }
-            }
-            return;
-          }
-          return new Promise<void>((resolve) => {
-            img.onload = () => {
-              if (img.decode) {
-                img.decode().catch(() => {}).finally(resolve);
-              } else {
-                resolve();
-              }
-            };
-            img.onerror = () => resolve();
-          });
-        })
-      );
-
-      // Wait for fonts
-      await document.fonts?.ready;
-
-      // Double RAF to ensure layout is painted
-      await new Promise((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(resolve))
-      );
-
-      let dataUrl: string | null = null;
-
-      // Try DOM screenshot first
-      try {
-        dataUrl = await toPng(node, {
-          pixelRatio: 2,
-          backgroundColor: "#fffefd",
-          cacheBust: true,
-        });
-      } catch {
-        // Fall through
-      }
-
-      // Canvas fallback
-      if (!dataUrl) {
-        const cardWidth = 720;
-        const scale = 2;
-        const canvas = document.createElement("canvas");
-        canvas.width = cardWidth * scale;
-        canvas.height = 1800 * scale;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.scale(scale, scale);
-          drawShareCardToCanvas(canvas, ctx, canvas.width, formData?.imageDataUrl);
-          dataUrl = canvas.toDataURL("image/png");
-        }
-      }
-
-      if (!dataUrl) throw new Error("生成失败");
-
-      // Convert to blob for Web Share API
       const blob = await (await fetch(dataUrl)).blob();
       const file = new File([blob], "liubuliu-fit-review.png", { type: "image/png" });
 
-      // Try Web Share API first (mobile)
       if (navigator.canShare?.({ files: [file] })) {
         try {
           await navigator.share({
@@ -1068,14 +1084,10 @@ export default function Result() {
             text: "我的衣服判断结果",
           });
         } catch {
-          // User cancelled or share failed — show fallback
           setGeneratedShareImage(dataUrl);
         }
       } else {
-        // Desktop or unsupported — show preview + download
         setGeneratedShareImage(dataUrl);
-
-        // Also trigger download on desktop
         const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
         if (!isMobile) {
           const link = document.createElement("a");
