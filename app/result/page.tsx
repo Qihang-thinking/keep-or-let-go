@@ -868,7 +868,11 @@ export default function Result() {
       }
     }
     if (line) lines.push(line);
-    const shown = lines.slice(0, maxLines);
+    let shown = lines.slice(0, maxLines);
+    if (lines.length > maxLines && shown.length > 0) {
+      const last = shown[shown.length - 1];
+      shown[shown.length - 1] = last.slice(0, -2) + "…";
+    }
     shown.forEach((l, i) => ctx.fillText(l, x, y + i * lineHeight));
     return y + shown.length * lineHeight;
   }
@@ -987,10 +991,10 @@ export default function Result() {
     // ── Summary ──
     ctx.fillStyle = "#514946";
     ctx.font = "400 30px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
-    const shortSummary = sharpComment.length > 100
-      ? sharpComment.slice(0, 97) + "…"
+    const shortSummary = sharpComment.length > 150
+      ? sharpComment.slice(0, 147) + "…"
       : sharpComment;
-    y = drawWrappedText(ctx, shortSummary, P, y, CW, 44, 3) + 24;
+    y = drawWrappedText(ctx, shortSummary, P, y, CW, 44, 5) + 24;
 
     // ── Divider + Scene ──
     ctx.strokeStyle = "#e8e0da";
