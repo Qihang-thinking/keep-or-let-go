@@ -2,6 +2,8 @@
 
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toPng } from "html-to-image";
+import ShareCardExport from "./ShareCardExport";
 import styles from "./page.module.css";
 
 type DecisionLabel = "建议放手" | "再观察" | "有条件留下" | "值得留下";
@@ -805,278 +807,20 @@ export default function Result() {
     setGeneratedShareImage("");
   };
 
-  function drawRoundRect(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    r: number
-  ) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.arcTo(x + w, y, x + w, y + r, r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
-    ctx.lineTo(x + r, y + h);
-    ctx.arcTo(x, y + h, x, y + h - r, r);
-    ctx.lineTo(x, y + r);
-    ctx.arcTo(x, y, x + r, y, r);
-    ctx.closePath();
-  }
-
-  function drawImageCover(
-    ctx: CanvasRenderingContext2D,
-    img: HTMLImageElement,
-    x: number,
-    y: number,
-    w: number,
-    h: number
-  ) {
-    const imgRatio = img.naturalWidth / img.naturalHeight;
-    const boxRatio = w / h;
-    let sx = 0, sy = 0, sw = img.naturalWidth, sh = img.naturalHeight;
-    if (imgRatio > boxRatio) {
-      sw = img.naturalHeight * boxRatio;
-      sx = (img.naturalWidth - sw) / 2;
-    } else {
-      sh = img.naturalWidth / boxRatio;
-      sy = (img.naturalHeight - sh) / 2;
-    }
-    ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
-  }
-
-  function drawWrappedText(
-    ctx: CanvasRenderingContext2D,
-    text: string,
-    x: number,
-    y: number,
-    maxWidth: number,
-    lineHeight: number,
-    maxLines = 5
-  ) {
-    let line = "";
-    const lines: string[] = [];
-    for (const ch of text) {
-      const test = line + ch;
-      if (ctx.measureText(test).width > maxWidth && line.length > 0) {
-        lines.push(line);
-        line = ch;
-      } else {
-        line = test;
-      }
-    }
-    if (line) lines.push(line);
-    let shown = lines.slice(0, maxLines);
-    if (lines.length > maxLines && shown.length > 0) {
-      const last = shown[shown.length - 1];
-      shown[shown.length - 1] = last.slice(0, -2) + "…";
-    }
-    shown.forEach((l, i) => ctx.fillText(l, x, y + i * lineHeight));
-    return y + shown.length * lineHeight;
-  }
-
-  async function generateShareImageCanvas(
-    imageDataUrl?: string
-  ): Promise<string> {
-    const W = 750;
-    const H = 1500;
-    const DPR = 2;
-    const P = 48;
-    const CW = W - P * 2;
-
-    const canvas = document.createElement("canvas");
-    canvas.width = W * DPR;
-    canvas.height = H * DPR;
-    const ctx = canvas.getContext("2d")!;
-    ctx.scale(DPR, DPR);
-
-    // Background
-    ctx.fillStyle = "#fbf7f3";
-    ctx.fillRect(0, 0, W, H);
-
-    let y = P;
-
-    // ── Header ──
-    ctx.fillStyle = "#3f3935";
-    ctx.font = "600 28px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
-    ctx.fillText("留不留", P, y + 22);
-
-    ctx.fillStyle = "#a1958e";
-    ctx.font = "500 18px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
-    ctx.textAlign = "right";
-    ctx.fillText("PERSONAL FIT REVIEW", W - P, y + 22);
-    ctx.textAlign = "left";
-    y += 50;
-
-    // Divider
-    ctx.strokeStyle = "#e8e0da";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(P, y);
-    ctx.lineTo(W - P, y);
-    ctx.stroke();
-    y += 44;
-
-    // ── Verdict ──
-    const verdictWord = getVerdictWord(decisionLabel, formData?.intent);
-    ctx.fillStyle = "#2f2926";
-    ctx.font = "600 88px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
-    ctx.fillText(verdictWord, P, y + 66);
-    y += 94;
-
-    // ── Score row ──
-    const scoreTitle = getScoreTitle(formData?.intent);
-    ctx.fillStyle = "#9b6572";
-    ctx.font = "600 18px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
-    ctx.fillText(scoreTitle, P, y + 14);
-
-    const scoreText = formatScore10(sharpScore);
-    ctx.fillStyle = "#2f2926";
-    ctx.font = "400 72px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
-    ctx.fillText(scoreText, P, y + 72);
-    const sw = ctx.measureText(scoreText).width;
-
-    ctx.fillStyle = "#8c827d";
-    ctx.font = "500 34px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
-    ctx.fillText("/ 10", P + sw + 10, y + 72);
-    y += 100;
-
-    // ── Image ──
-    const imgX = P;
-    const imgY = y;
-    const imgW = CW;
-    const imgH = 420;
-
-    if (imageDataUrl) {
-      try {
-        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-          const i = new Image();
-          i.onload = () => resolve(i);
-          i.onerror = () => reject(new Error("load failed"));
-          i.src = imageDataUrl;
-        });
-        ctx.save();
-        drawRoundRect(ctx, imgX, imgY, imgW, imgH, 28);
-        ctx.clip();
-        drawImageCover(ctx, img, imgX, imgY, imgW, imgH);
-        ctx.restore();
-        ctx.strokeStyle = "#e8e0da";
-        ctx.lineWidth = 1.5;
-        drawRoundRect(ctx, imgX, imgY, imgW, imgH, 28);
-        ctx.stroke();
-      } catch {
-        ctx.fillStyle = "#f2eee9";
-        drawRoundRect(ctx, imgX, imgY, imgW, imgH, 28);
-        ctx.fill();
-        ctx.fillStyle = "#a1958e";
-        ctx.font = "24px -apple-system, PingFang SC, sans-serif";
-        ctx.textAlign = "center";
-        ctx.fillText("图片加载失败", W / 2, imgY + imgH / 2);
-        ctx.textAlign = "left";
-      }
-    } else {
-      ctx.fillStyle = "#f2eee9";
-      drawRoundRect(ctx, imgX, imgY, imgW, imgH, 28);
-      ctx.fill();
-      ctx.fillStyle = "#a1958e";
-      ctx.font = "24px -apple-system, PingFang SC, sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText("暂无图片", W / 2, imgY + imgH / 2);
-      ctx.textAlign = "left";
-    }
-    y = imgY + imgH + 32;
-
-    // ── Summary ──
-    ctx.fillStyle = "#514946";
-    ctx.font = "400 30px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
-    const shortSummary = sharpComment.length > 150
-      ? sharpComment.slice(0, 147) + "…"
-      : sharpComment;
-    y = drawWrappedText(ctx, shortSummary, P, y, CW, 44, 5) + 24;
-
-    // ── Divider + Scene ──
-    ctx.strokeStyle = "#e8e0da";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(P, y);
-    ctx.lineTo(W - P, y);
-    ctx.stroke();
-    y += 32;
-
-    ctx.fillStyle = "#9b6572";
-    ctx.font = "600 16px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
-    ctx.fillText("适合场景", P, y);
-    y += 28;
-
-    ctx.fillStyle = "#5c534f";
-    ctx.font = "400 26px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
-    const sceneText = result?.uiSummary?.bestScenario || "";
-    ctx.fillText(sceneText.slice(0, 40), P, y);
-    y += 40;
-
-    // ── Divider + Styling RX ──
-    if (shareRxItems.length > 0) {
-      ctx.strokeStyle = "#e8e0da";
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(P, y);
-      ctx.lineTo(W - P, y);
-      ctx.stroke();
-      y += 32;
-
-      ctx.fillStyle = "#9b6572";
-      ctx.font = "600 16px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
-      ctx.fillText("造型处方", P, y);
-      y += 32;
-
-      shareRxItems.forEach((item, idx) => {
-        const num = String(idx + 1).padStart(2, "0");
-        ctx.fillStyle = "#9b6572";
-        ctx.font = "600 22px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
-        ctx.fillText(num, P, y);
-        ctx.fillText(item.label, P + 44, y);
-        y += 26;
-
-        ctx.fillStyle = "#403936";
-        ctx.font = "400 22px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
-        const value = item.value.length > 50 ? item.value.slice(0, 48) + "…" : item.value;
-        y = drawWrappedText(ctx, value, P + 12, y, CW - 12, 30, 2) + 16;
-      });
-
-      // Color direction
-      if (shareColorDir) {
-        y += 2;
-        ctx.fillStyle = "#9b6572";
-        ctx.font = "600 16px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
-        ctx.fillText("●  ●  ●  配色方向", P, y);
-        y += 24;
-        ctx.fillStyle = "#5c534f";
-        ctx.font = "400 24px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
-        ctx.fillText(shareColorDir.slice(0, 40), P, y);
-        y += 30;
-      }
-    }
-
-    // ── URL (float below content, min 1300) ──
-    const urlY = Math.max(y + 60, 1300);
-    ctx.fillStyle = "#c4bab6";
-    ctx.font = "500 18px -apple-system, PingFang SC, Hiragino Sans GB, sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("www.liubuliu.com.cn", W / 2, urlY);
-    ctx.textAlign = "left";
-
-    return canvas.toDataURL("image/png");
-  }
-
   const handleDownloadShare = async () => {
     setShareError("");
     setGeneratedShareImage("");
     setIsGeneratingShare(true);
 
     try {
-      const dataUrl = await generateShareImageCanvas(formData?.imageDataUrl);
+      const node = shareCardRef.current;
+      if (!node) throw new Error("export node not found");
+
+      const dataUrl = await toPng(node, {
+        pixelRatio: 2,
+        cacheBust: true,
+        backgroundColor: "#fbf7f3",
+      });
 
       const blob = await (await fetch(dataUrl)).blob();
       const file = new File([blob], "liubuliu-fit-review.png", { type: "image/png" });
@@ -1546,128 +1290,24 @@ export default function Result() {
 
         {showShareModal && (
           <div
-            className={styles.shareOverlay}
+            className={styles.shareModal}
             onClick={handleCloseModal}
             role="dialog"
             aria-modal="true"
           >
             <div
-              className={styles.shareModal}
+              className={styles.shareModalPanel}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className={styles.shareModalHeader}>
-                <h2>分享结果图</h2>
-                <button
-                  className={styles.shareModalClose}
-                  onClick={handleCloseModal}
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div
-                ref={shareCardRef}
-                className={styles.shareCard}
-              >
-                {/* Header */}
-                <div className={styles.shareHeader}>
-                  <span>留不留</span>
-                  <strong>PERSONAL FIT REVIEW</strong>
-                </div>
-
-                {/* Verdict */}
-                <h1 className={styles.shareVerdict}>
-                  {getVerdictWord(decisionLabel, formData.intent)}
-                </h1>
-
-                {/* Score row */}
-                <div className={styles.shareScoreRow}>
-                  <span>{getScoreTitle(formData.intent)}</span>
-                  <strong>{formatScore10(sharpScore)} <em>/ 10</em></strong>
-                </div>
-
-                {/* Image */}
-                {formData.imageDataUrl && (
-                  <div className={styles.shareImageFrame}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      className={styles.shareImage}
-                      src={formData.imageDataUrl}
-                      alt=""
-                      crossOrigin="anonymous"
-                    />
-                  </div>
-                )}
-
-                {/* Summary */}
-                <p className={styles.shareSummary}>
-                  {sharpComment}
-                </p>
-
-                {/* Scene */}
-                <div className={styles.shareScene}>
-                  <span>适合场景</span>
-                  <strong>{result.uiSummary.bestScenario}</strong>
-                </div>
-
-                {/* Styling RX */}
-                {(shareRxItems.length > 0 || shareRxIntro) && (
-                  <div className={styles.shareRxSection}>
-                    <div className={styles.shareRxHeader}>
-                      <span>造型处方</span>
-                      <strong>STYLING RX</strong>
-                    </div>
-
-                    {shareRxIntro && (
-                      <p className={styles.shareRxIntro}>{shareRxIntro}</p>
-                    )}
-
-                    {shareRxItems.map((item, idx) => (
-                      <div key={idx} className={styles.shareRxItem}>
-                        <em>{String(idx + 1).padStart(2, "0")}</em>
-                        <div>
-                          <span>{item.label}</span>
-                          <strong>{item.value}</strong>
-                        </div>
-                      </div>
-                    ))}
-
-                    {shareColorDir && (
-                      <div className={styles.shareRxColor}>
-                        <span className={styles.shareRxColorDots}>
-                          <span /><span /><span />
-                        </span>
-                        <span>配色方向</span>
-                        <p>{shareColorDir}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Footer */}
-                <p
-  style={{
-    margin: "28px 0 0",
-    color: "#a1958e",
-    fontSize: "13px",
-    fontWeight: 600,
-    letterSpacing: "0.16em",
-    textAlign: "center",
-  }}
->
-  www.liubuliu.com.cn
-</p>
-              </div>
-
               {generatedShareImage ? (
-                <div className={styles.sharePreviewFallback}>
+                <>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     className={styles.sharePreviewImage}
                     src={generatedShareImage}
                     alt="分享图预览"
                   />
-                  <p className={styles.sharePreviewHint}>
+                  <p className={styles.shareHint}>
                     长按图片保存，或使用浏览器分享按钮发送给朋友。
                   </p>
                   <button
@@ -1677,9 +1317,26 @@ export default function Result() {
                   >
                     关闭
                   </button>
-                </div>
+                </>
               ) : (
-                <div className={styles.shareModalActions}>
+                <>
+                  <div className={styles.previewWrap}>
+                    <ShareCardExport
+                      mode="preview"
+                      verdictWord={getVerdictWord(decisionLabel, formData.intent)}
+                      scoreTitle={getScoreTitle(formData.intent)}
+                      scoreText={formatScore10(sharpScore)}
+                      imageDataUrl={formData.imageDataUrl}
+                      summary={sharpComment}
+                      scene={result.uiSummary.bestScenario}
+                      rxItems={shareRxItems}
+                      rxIntro={shareRxIntro}
+                      colorDir={shareColorDir}
+                    />
+                  </div>
+                  <p className={styles.shareHint}>
+                    长按图片保存，或使用浏览器分享按钮发送给朋友。
+                  </p>
                   <button
                     type="button"
                     className={styles.shareDownloadButton}
@@ -1695,15 +1352,30 @@ export default function Result() {
                   >
                     关闭
                   </button>
-                </div>
+                </>
               )}
-
               {shareError && (
                 <p className={styles.shareError}>{shareError}</p>
               )}
             </div>
           </div>
         )}
+
+        {/* hidden export-only node — toPng captures this */}
+        <div className={styles.exportOnly} ref={shareCardRef}>
+          <ShareCardExport
+            mode="export"
+            verdictWord={getVerdictWord(decisionLabel, formData.intent)}
+            scoreTitle={getScoreTitle(formData.intent)}
+            scoreText={formatScore10(sharpScore)}
+            imageDataUrl={formData.imageDataUrl}
+            summary={sharpComment}
+            scene={result.uiSummary.bestScenario}
+            rxItems={shareRxItems}
+            rxIntro={shareRxIntro}
+            colorDir={shareColorDir}
+          />
+        </div>
       </main>
     </div>
   );
