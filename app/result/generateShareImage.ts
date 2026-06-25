@@ -17,10 +17,10 @@ type ShareInput = {
 };
 
 const W = 750;
-const H = 980;
-const P = 30;
+const H = 1120;
+const P = 34;
 const CARD_W = W - P * 2;
-const CARD_R = 28;
+const CARD_R = 30;
 const FONT = `-apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif`;
 
 function roundRect(
@@ -44,17 +44,17 @@ function roundRect(
   ctx.closePath();
 }
 
-function drawCard(ctx: CanvasRenderingContext2D, y: number, h: number) {
+function drawCard(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r = CARD_R) {
   ctx.fillStyle = "#fffefd";
-  roundRect(ctx, P, y, CARD_W, h, CARD_R);
+  roundRect(ctx, x, y, w, h, r);
   ctx.fill();
-  ctx.strokeStyle = "#e7ded8";
+  ctx.strokeStyle = "#e8ded8";
   ctx.lineWidth = 1.5;
-  roundRect(ctx, P, y, CARD_W, h, CARD_R);
+  roundRect(ctx, x, y, w, h, r);
   ctx.stroke();
 }
 
-function drawLine(ctx: CanvasRenderingContext2D, x: number, y: number, w: number) {
+function drawDivider(ctx: CanvasRenderingContext2D, x: number, y: number, w: number) {
   ctx.strokeStyle = "#eadfd9";
   ctx.lineWidth = 1.4;
   ctx.beginPath();
@@ -72,7 +72,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-function drawCover(
+function drawContain(
   ctx: CanvasRenderingContext2D,
   img: HTMLImageElement,
   x: number,
@@ -84,22 +84,13 @@ function drawCover(
   const ih = img.naturalHeight;
   if (!iw || !ih) return;
 
-  const imageRatio = iw / ih;
-  const boxRatio = w / h;
-  let sx = 0;
-  let sy = 0;
-  let sw = iw;
-  let sh = ih;
+  const scale = Math.min(w / iw, h / ih);
+  const dw = iw * scale;
+  const dh = ih * scale;
+  const dx = x + (w - dw) / 2;
+  const dy = y + (h - dh) / 2;
 
-  if (imageRatio > boxRatio) {
-    sw = ih * boxRatio;
-    sx = (iw - sw) / 2;
-  } else {
-    sh = iw / boxRatio;
-    sy = (ih - sh) / 2;
-  }
-
-  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+  ctx.drawImage(img, dx, dy, dw, dh);
 }
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number) {
@@ -202,128 +193,119 @@ export default async function generateShareImage(input: ShareInput): Promise<str
     }
   }
 
-  const innerX = P + 34;
-  const innerW = CARD_W - 68;
-  const card1Y = 72;
-  const card1H = 444;
-  const card2Y = card1Y + card1H + 22;
-  const card2H = 354;
-
   ctx.fillStyle = "#2f2926";
-  ctx.font = `800 28px ${FONT}`;
-  ctx.fillText("留不留", P, 42);
+  ctx.font = `800 30px ${FONT}`;
+  ctx.fillText("留不留", P, 48);
 
   ctx.fillStyle = "#9d928c";
-  ctx.font = `700 16px ${FONT}`;
-  ctx.fillText("|  FIT REVIEW", P + 102, 42);
+  ctx.font = `700 17px ${FONT}`;
+  ctx.fillText("|  FIT REVIEW", P + 104, 48);
 
   ctx.textAlign = "right";
-  ctx.font = `700 16px ${FONT}`;
-  ctx.fillText("SHARE CARD", W - P, 42);
+  ctx.font = `700 17px ${FONT}`;
+  ctx.fillText("No.0625", W - P, 48);
   ctx.textAlign = "left";
 
-  drawCard(ctx, card1Y, card1H);
+  const photoY = 78;
+  const photoH = 470;
+  drawCard(ctx, P, photoY, CARD_W, photoH, 32);
 
-  ctx.fillStyle = "#9b6572";
-  ctx.font = `800 16px ${FONT}`;
-  ctx.fillText("THE VERDICT", innerX, card1Y + 48);
-  drawPill(ctx, "VERDICT", P + CARD_W - 34 - 112, card1Y + 22, 112);
+  const photoPad = 22;
+  const photoX = P + photoPad;
+  const photoInnerY = photoY + photoPad;
+  const photoInnerW = CARD_W - photoPad * 2;
+  const photoInnerH = photoH - photoPad * 2;
 
-  const imageW = 132;
-  const imageH = 176;
-  const imageX = P + CARD_W - 34 - imageW;
-  const imageY = card1Y + 96;
+  ctx.fillStyle = "#f4eee9";
+  roundRect(ctx, photoX, photoInnerY, photoInnerW, photoInnerH, 24);
+  ctx.fill();
 
   if (img) {
     ctx.save();
-    roundRect(ctx, imageX, imageY, imageW, imageH, 16);
+    roundRect(ctx, photoX, photoInnerY, photoInnerW, photoInnerH, 24);
     ctx.clip();
-    drawCover(ctx, img, imageX, imageY, imageW, imageH);
+    drawContain(ctx, img, photoX, photoInnerY, photoInnerW, photoInnerH);
     ctx.restore();
-  } else {
-    ctx.fillStyle = "#f1ede8";
-    roundRect(ctx, imageX, imageY, imageW, imageH, 16);
-    ctx.fill();
   }
 
-  ctx.strokeStyle = "#e5dcd7";
-  ctx.lineWidth = 1.2;
-  roundRect(ctx, imageX, imageY, imageW, imageH, 16);
-  ctx.stroke();
+  drawPill(ctx, decisionLabel || "判断", P + 34, photoY + 32, 122);
 
-  const leftW = innerW - imageW - 38;
+  const verdictY = photoY + photoH + 18;
+  const verdictH = 238;
+  drawCard(ctx, P, verdictY, CARD_W, verdictH);
 
-  ctx.fillStyle = "#2f2926";
-  ctx.font = `800 72px ${FONT}`;
-  drawTextLines(ctx, decisionLabel || "判断", innerX, card1Y + 144, leftW, 74, 1);
+  const innerX = P + 36;
+  const innerW = CARD_W - 72;
 
   ctx.fillStyle = "#9b6572";
   ctx.font = `800 16px ${FONT}`;
-  ctx.fillText(scoreTitle || "综合适配分", innerX, card1Y + 190);
+  ctx.fillText(scoreTitle || "综合适配分", innerX, verdictY + 46);
 
   const score = scoreText || computeScore(ratings);
   ctx.fillStyle = "#2f2926";
-  ctx.font = `400 56px ${FONT}`;
-  ctx.fillText(score, innerX, card1Y + 246);
+  ctx.font = `400 58px ${FONT}`;
+  ctx.fillText(score, innerX, verdictY + 104);
 
   const scoreW = ctx.measureText(score).width;
   ctx.fillStyle = "#8f8580";
-  ctx.font = `700 23px ${FONT}`;
-  ctx.fillText("/ 10", innerX + scoreW + 18, card1Y + 242);
+  ctx.font = `700 24px ${FONT}`;
+  ctx.fillText("/ 10", innerX + scoreW + 16, verdictY + 100);
+
+  ctx.fillStyle = "#2f2926";
+  ctx.font = `800 44px ${FONT}`;
+  ctx.textAlign = "right";
+  ctx.fillText(decisionLabel || "判断", P + CARD_W - 36, verdictY + 84);
+  ctx.textAlign = "left";
 
   ctx.fillStyle = "#514946";
-  ctx.font = `500 26px ${FONT}`;
-  drawTextLines(ctx, decisionHeadline, innerX, card1Y + 306, innerW, 34, 2);
+  ctx.font = `600 25px ${FONT}`;
+  drawTextLines(ctx, decisionHeadline, innerX, verdictY + 148, innerW, 32, 2);
 
   if (decisionEvidence) {
-    drawLine(ctx, innerX, card1Y + 356, innerW);
+    drawDivider(ctx, innerX, verdictY + 174, innerW);
     ctx.fillStyle = "#9b6572";
-    ctx.font = `800 16px ${FONT}`;
-    ctx.fillText("判断依据", innerX, card1Y + 388);
+    ctx.font = `800 15px ${FONT}`;
+    ctx.fillText("判断依据", innerX, verdictY + 204);
 
     ctx.fillStyle = "#514946";
-    ctx.font = `600 22px ${FONT}`;
-    drawTextLines(ctx, decisionEvidence, innerX + 90, card1Y + 388, innerW - 90, 29, 2);
+    ctx.font = `600 20px ${FONT}`;
+    drawTextLines(ctx, decisionEvidence, innerX + 88, verdictY + 204, innerW - 88, 26, 1);
   }
 
-  drawCard(ctx, card2Y, card2H);
+  const rxY = verdictY + verdictH + 18;
+  const rxH = 228;
+  drawCard(ctx, P, rxY, CARD_W, rxH);
 
   ctx.fillStyle = "#9b6572";
   ctx.font = `800 16px ${FONT}`;
-  ctx.fillText("造型处方", innerX, card2Y + 48);
-  drawPill(ctx, "STYLING RX", P + CARD_W - 34 - 132, card2Y + 22, 132);
-  drawLine(ctx, innerX, card2Y + 76, innerW);
+  ctx.fillText("造型处方", innerX, rxY + 46);
+  drawPill(ctx, "STYLING RX", P + CARD_W - 36 - 132, rxY + 22, 132);
+  drawDivider(ctx, innerX, rxY + 74, innerW);
 
   if (stylingPlan) {
-    let y = card2Y + 122;
+    ctx.fillStyle = "#2f2926";
+    ctx.font = `800 26px ${FONT}`;
+    drawTextLines(ctx, stylingPlan.outfit, innerX, rxY + 116, innerW, 32, 1);
 
-    const drawRow = (label: string, value: string, maxLines = 1) => {
-      if (!value) return;
+    ctx.fillStyle = "#9b6572";
+    ctx.font = `800 15px ${FONT}`;
+    ctx.fillText("鞋包", innerX, rxY + 162);
+    ctx.fillText("配色", innerX, rxY + 198);
 
-      ctx.fillStyle = "#9b6572";
-      ctx.font = `800 16px ${FONT}`;
-      ctx.fillText(label, innerX, y);
-
-      ctx.fillStyle = "#403936";
-      ctx.font = `600 25px ${FONT}`;
-      drawTextLines(ctx, value, innerX + 70, y, innerW - 70, 32, maxLines);
-      y += maxLines === 2 ? 78 : 52;
-    };
-
-    drawRow("搭配", stylingPlan.outfit, 2);
-    drawRow("鞋包", stylingPlan.shoesAndBag, 1);
-    drawRow("配色", stylingPlan.colorDirection, 1);
-    drawRow("避免", stylingPlan.avoid || "", 1);
+    ctx.fillStyle = "#403936";
+    ctx.font = `600 22px ${FONT}`;
+    drawTextLines(ctx, stylingPlan.shoesAndBag, innerX + 58, rxY + 162, innerW - 58, 28, 1);
+    drawTextLines(ctx, [stylingPlan.colorDirection, stylingPlan.avoid].filter(Boolean).join("；"), innerX + 58, rxY + 198, innerW - 58, 28, 1);
   } else {
     ctx.fillStyle = "#514946";
     ctx.font = `500 24px ${FONT}`;
-    ctx.fillText("暂无明确造型处方。", innerX, card2Y + 126);
+    ctx.fillText("暂无明确造型处方。", innerX, rxY + 116);
   }
 
   ctx.fillStyle = "#c6bdb8";
   ctx.font = `700 16px ${FONT}`;
   ctx.textAlign = "center";
-  ctx.fillText("www.liubuliu.com.cn", W / 2, H - 34);
+  ctx.fillText("www.liubuliu.com.cn", W / 2, H - 28);
   ctx.textAlign = "left";
 
   return canvas.toDataURL("image/png");

@@ -1211,7 +1211,15 @@ export default function Result() {
           <button className={styles.primaryButton} onClick={handleStartNew}>
             再判断一件
           </button>
-          <button className={styles.secondaryButton} onClick={handleShareImage}>
+          <button
+            className={styles.secondaryButton}
+            onClick={handleShareImage}
+            style={{
+              background: "#f7edf1",
+              borderColor: "#ead6dd",
+              color: "#9b6572",
+            }}
+          >
             生成分享图
           </button>
           <button className={styles.secondaryButton} onClick={handleEditForm}>
@@ -1240,7 +1248,7 @@ export default function Result() {
           <div
             onClick={(event) => event.stopPropagation()}
             style={{
-              width: "min(92vw, 420px)",
+              width: "min(96vw, 540px)",
               maxHeight: "86vh",
               overflow: "auto",
               borderRadius: 24,
@@ -1262,17 +1270,61 @@ export default function Result() {
                   style={{
                     display: "block",
                     width: "100%",
-                    maxHeight: "68vh",
+                    maxHeight: "78vh",
                     objectFit: "contain",
                     borderRadius: 16,
                     userSelect: "none",
                     WebkitUserSelect: "none",
                     WebkitTouchCallout: "default",
+                    touchAction: "auto",
                   }}
                 />
                 <p style={{ margin: "12px 0 0", textAlign: "center", color: "#7a6f69", fontSize: 14 }}>
                   长按图片保存 / 分享
                 </p>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 10,
+                    marginTop: 12,
+                  }}
+                >
+                  <a
+                    href={shareImageUrl}
+                    download="liubuliu-share.png"
+                    style={{
+                      display: "block",
+                      borderRadius: 999,
+                      padding: "12px 14px",
+                      background: "#f7edf1",
+                      border: "1px solid #ead6dd",
+                      color: "#9b6572",
+                      fontWeight: 700,
+                      fontSize: 14,
+                      textAlign: "center",
+                      textDecoration: "none",
+                    }}
+                  >
+                    下载图片
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowShare(false)}
+                    style={{
+                      border: "none",
+                      borderRadius: 999,
+                      padding: "12px 14px",
+                      background: "#9b6572",
+                      color: "#fff",
+                      fontWeight: 700,
+                      fontSize: 14,
+                    }}
+                  >
+                    关闭
+                  </button>
+                </div>
               </>
             ) : (
               <p style={{ margin: 0, padding: 24, textAlign: "center", color: "#7a6f69" }}>
@@ -1280,23 +1332,6 @@ export default function Result() {
               </p>
             )}
 
-            <button
-              type="button"
-              onClick={() => setShowShare(false)}
-              style={{
-                width: "100%",
-                marginTop: 14,
-                border: "none",
-                borderRadius: 999,
-                padding: "12px 16px",
-                background: "#9b6572",
-                color: "#fff",
-                fontWeight: 700,
-                fontSize: 15,
-              }}
-            >
-              关闭
-            </button>
           </div>
         </div>
       )}
