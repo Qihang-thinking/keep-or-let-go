@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { CSSProperties, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./page.module.css";
 
@@ -19,6 +19,23 @@ type StylingPlan = {
   avoid: string;
   whyItWorks: string;
 };
+type SharpReview = {
+  score?: number;
+  comment?: string;
+  oneLineReason?: string;
+  biggestProblem?: string;
+  keepCondition?: string[];
+  dropReason?: string[];
+};
+
+type StylingFormula = {
+  inner?: string;
+  bottom?: string;
+  shoes?: string;
+  bag?: string;
+  color?: string;
+  avoid?: string;
+};
 
 type RatingItem = {
   label: string;
@@ -35,12 +52,23 @@ type VisualAnalysis = {
   imageQuality?: string;
 };
 
+type ImageCheck = {
+  visibleMainItem?: string;
+  selectedItemType?: string;
+  isTypeMatched?: boolean;
+  targetItemVisible?: boolean;
+  warning?: string;
+};
+
 type EvaluationResult = {
-  decision: {
+  imageCheck?: ImageCheck;
+    decision: {
     label: DecisionLabel | string;
     headline: string;
     reason: string;
   };
+  sharpReview?: SharpReview;
+  stylingFormula?: StylingFormula;
   uiSummary: {
     retentionValue: string;
     idleRisk: string;
@@ -49,8 +77,8 @@ type EvaluationResult = {
   };
   visualAnalysis?: VisualAnalysis;
   ratings?: RatingItem[];
-  keepReasons: ReasonItem[];
-  riskReasons: ReasonItem[];
+  keepReasons?: ReasonItem[];
+  riskReasons?: ReasonItem[];
   stylingPlans: StylingPlan[];
   replacementAdvice: {
     title: string;
@@ -60,15 +88,199 @@ type EvaluationResult = {
 };
 
 type FormData = {
+  intent?: string;
+  purpose?: string;
   itemType: string;
   concern: string;
   feeling: string;
+  firstFeeling?: string;
   similarItems: string;
   scenario: string;
+  occasion?: string;
+  priceFeeling?: string;
   note: string;
+  extraInfo?: string;
   imageName?: string;
   imageDataUrl?: string;
 };
+function formatDisplayText(value?: string) {
+  return value ? value.replace(/\//g, " / ") : "";
+}
+function getIntentCopy(intent?: string) {
+  if (intent?.includes("怎么搭")) {
+    return {
+      pageTitle: "搭配方案",
+      spectrumTitle: "搭配可行度",
+      spectrumLabels: ["不建议硬搭", "需要调整", "有搭配空间", "很好搭"],
+      heroEyebrow: "Styling Direction",
+      evidenceTitle: "搭配依据",
+      detailTitle: "详细分析",
+    };
+  }
+
+  if (intent?.includes("适不适合")) {
+    return {
+      pageTitle: "适配度判断",
+      spectrumTitle: "适配度光谱",
+      spectrumLabels: ["不太适合", "需要再观察", "有条件适合", "很适合你"],
+      heroEyebrow: "Fit Review",
+      evidenceTitle: "适配分析",
+      detailTitle: "详细分析",
+    };
+  }
+
+  return {
+    pageTitle: "留 / 不留判断",
+    spectrumTitle: "留 / 不留光谱",
+    spectrumLabels: ["建议放手", "再观察", "有条件留下", "值得留下"],
+    heroEyebrow: "Wardrobe Decision",
+    evidenceTitle: "判断依据",
+    detailTitle: "详细分析",
+  };
+}
+
+function getDisplayDecisionLabel(label: DecisionLabel, intent?: string) {
+  if (intent?.includes("怎么搭")) {
+    if (label === "建议放手") return "不建议硬搭";
+    if (label === "再观察") return "需要调整";
+    if (label === "有条件留下") return "有搭配空间";
+    return "很好搭";
+  }
+
+  if (intent?.includes("适不适合")) {
+    if (label === "建议放手") return "不太适合";
+    if (label === "再观察") return "需要再观察";
+    if (label === "有条件留下") return "有条件适合";
+    return "很适合你";
+  }
+
+  return label;
+}
+
+function getHeroDecisionLabel(label: DecisionLabel, intent?: string, primaryPlan?: StylingPlan) {
+  if (intent?.includes("怎么搭")) {
+    return formatDisplayText(primaryPlan?.scenario) || "优先这样搭";
+  }
+
+  return getDisplayDecisionLabel(label, intent);
+}
+
+function getHeroDescription(result: EvaluationResult, intent?: string, primaryPlan?: StylingPlan) {
+  if (intent?.includes("怎么搭") && primaryPlan?.outfit) {
+    return primaryPlan.outfit;
+  }
+
+  return result.decision.headline;
+}
+
+function getSharpScore(result: EvaluationResult, label: DecisionLabel) {
+  const rawScore = result.sharpReview?.score;
+
+  if (typeof rawScore === "number" && Number.isFinite(rawScore)) {
+    return Math.max(0, Math.min(10, rawScore));
+  }
+
+  if (label === "值得留下") return 8.2;
+  if (label === "有条件留下") return 6.8;
+  if (label === "再观察") return 6.2;
+  return 5.2;
+}
+
+function formatSharpScore(score: number) {
+  return Number.isInteger(score) ? String(score) : score.toFixed(1);
+}
+
+function getSharpComment(result: EvaluationResult, label: DecisionLabel, intent?: string) {
+  if (result.sharpReview?.comment) return result.sharpReview.comment;
+
+  if (intent?.includes("怎么搭")) {
+    if (label === "建议放手") return "不是不能搭，是没必要硬拗；限制太多会拖累整套。";
+    if (label === "再观察") return "能搭，但需要明显调整；随便穿容易暴露短板。";
+    if (label === "有条件留下") return "有搭配空间，但不能乱搭；必须靠比例和鞋包撑住。";
+    return "搭配方向清楚，可以直接进入常穿公式。";
+  }
+
+  if (intent?.includes("适不适合")) {
+    if (label === "建议放手") return "不是你不会穿，是这件本身对你加分不够。";
+    if (label === "再观察") return "能穿，但没有明显抬高你的状态。";
+    if (label === "有条件留下") return "适合一部分场景，但需要搭配把短板压下去。";
+    return "这件和你的比例、风格方向比较顺。";
+  }
+
+  if (label === "建议放手") return "能穿不等于值得留；这件没有强到要占衣橱位置。";
+  if (label === "再观察") return "先别急着留下，它现在的说服力还不够。";
+  if (label === "有条件留下") return "可以留，但理由应该是实用，不是它特别加分。";
+  return "这件有明确加分点，不是靠勉强搭配才成立。";
+}
+
+function getOneLineReason(result: EvaluationResult) {
+  return result.sharpReview?.oneLineReason || result.decision.reason || result.finalNote;
+}
+
+function getBiggestProblem(result: EvaluationResult) {
+  return (
+    result.sharpReview?.biggestProblem ||
+    result.riskReasons?.[0]?.detail ||
+    result.decision.reason ||
+    "最大问题还不够明确，建议重新生成一次。"
+  );
+}
+
+function getKeepConditions(result: EvaluationResult, primaryPlan?: StylingPlan) {
+  const conditions = result.sharpReview?.keepCondition?.filter(Boolean) || [];
+
+  if (conditions.length > 0) return conditions.slice(0, 3);
+
+  return [
+    result.keepReasons?.[0]?.detail || "你确实缺这个类型，并且它能进入固定搭配。",
+    primaryPlan?.scenario
+      ? `你会在「${primaryPlan.scenario}」里稳定使用。`
+      : result.uiSummary.bestScenario || "你有明确使用场景。",
+  ].filter(Boolean).slice(0, 3);
+}
+
+function getDropReasons(result: EvaluationResult) {
+  const reasons = result.sharpReview?.dropReason?.filter(Boolean) || [];
+
+  if (reasons.length > 0) return reasons.slice(0, 3);
+
+  return [
+    result.riskReasons?.[0]?.detail || "短板比亮点更影响日常穿着。",
+    result.riskReasons?.[1]?.detail || "如果需要反复说服自己，它就不够值得。",
+  ].filter(Boolean).slice(0, 3);
+}
+
+function getFormulaValue(
+  result: EvaluationResult,
+  key: keyof StylingFormula,
+  fallback: string
+) {
+  return result.stylingFormula?.[key] || fallback;
+}
+
+function shouldBlockForInvisibleTarget(result: EvaluationResult) {
+  return result.imageCheck?.targetItemVisible === false;
+}
+
+function getImageCheckWarning(result: EvaluationResult) {
+  const check = result.imageCheck;
+
+  if (!check) return "";
+  if (check.targetItemVisible === false) {
+    return check.warning || "图片中没有清楚看到你选择的目标单品。";
+  }
+
+  if (check.isTypeMatched === false) {
+    return (
+      check.warning ||
+      `你选择的是「${check.selectedItemType || "该类型"}」，但图片主体更像「${
+        check.visibleMainItem || "另一类单品"
+      }」。以下判断将优先依据图片主体。`
+    );
+  }
+
+  return "";
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -79,24 +291,62 @@ function isValidResult(value: unknown): value is EvaluationResult {
     isRecord(value) &&
     isRecord(value.decision) &&
     isRecord(value.uiSummary) &&
-    Array.isArray(value.keepReasons) &&
-    Array.isArray(value.riskReasons) &&
     Array.isArray(value.stylingPlans) &&
     isRecord(value.replacementAdvice) &&
     typeof value.finalNote === "string"
   );
 }
 
-function isValidForm(value: unknown): value is FormData {
-  return (
-    isRecord(value) &&
-    typeof value.itemType === "string" &&
-    typeof value.concern === "string" &&
-    typeof value.feeling === "string" &&
-    typeof value.similarItems === "string" &&
-    typeof value.scenario === "string" &&
+function normalizeFormData(value: unknown): FormData | null {
+  if (!isRecord(value)) return null;
+
+  const itemType = typeof value.itemType === "string" ? value.itemType : "";
+  if (!itemType) return null;
+
+  const intent =
+    typeof value.intent === "string"
+      ? value.intent
+      : typeof value.purpose === "string"
+      ? value.purpose
+      : "";
+
+  const feeling =
+    typeof value.feeling === "string"
+      ? value.feeling
+      : typeof value.firstFeeling === "string"
+      ? value.firstFeeling
+      : "";
+
+  const scenario =
+    typeof value.scenario === "string"
+      ? value.scenario
+      : typeof value.occasion === "string"
+      ? value.occasion
+      : "";
+
+  const note =
     typeof value.note === "string"
-  );
+      ? value.note
+      : typeof value.extraInfo === "string"
+      ? value.extraInfo
+      : "";
+
+  return {
+    intent,
+    purpose: typeof value.purpose === "string" ? value.purpose : intent,
+    itemType,
+    concern: typeof value.concern === "string" ? value.concern : "",
+    feeling,
+    firstFeeling: typeof value.firstFeeling === "string" ? value.firstFeeling : feeling,
+    similarItems: typeof value.similarItems === "string" ? value.similarItems : "",
+    scenario,
+    occasion: typeof value.occasion === "string" ? value.occasion : scenario,
+    priceFeeling: typeof value.priceFeeling === "string" ? value.priceFeeling : "",
+    note,
+    extraInfo: typeof value.extraInfo === "string" ? value.extraInfo : note,
+    imageName: typeof value.imageName === "string" ? value.imageName : "",
+    imageDataUrl: typeof value.imageDataUrl === "string" ? value.imageDataUrl : "",
+  };
 }
 
 function normalizeDecisionLabel(label: string): DecisionLabel {
@@ -113,27 +363,310 @@ function normalizeDecisionLabel(label: string): DecisionLabel {
 }
 
 function getDecisionPosition(label: DecisionLabel) {
-  if (label === "建议放手") return "15%";
-  if (label === "再观察") return "45%";
-  if (label === "有条件留下") return "68%";
-  return "88%";
+  if (label === "建议放手") return "18%";
+  if (label === "再观察") return "52%";
+  if (label === "有条件留下") return "74%";
+  return "90%";
 }
 
-function getDecisionTone(label: DecisionLabel) {
+function getReportNumber() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `No.${month}${day}`;
+}
+
+function getVerdictWord(label: DecisionLabel, intent?: string) {
+  if (intent?.includes("怎么搭")) {
+    if (label === "建议放手") return "难搭";
+    if (label === "再观察") return "调整";
+    if (label === "有条件留下") return "可搭";
+    return "好搭";
+  }
+
+  if (intent?.includes("适不适合")) {
+    if (label === "建议放手") return "不合";
+    if (label === "再观察") return "观察";
+    if (label === "有条件留下") return "适合";
+    return "很合";
+  }
+
+  if (label === "建议放手") return "放手";
+  if (label === "再观察") return "观察";
+  if (label === "有条件留下") return "有条件留";
+  return "留下";
+}
+
+function getScorePercent(score: number) {
+  return Math.max(0, Math.min(100, Math.round(score * 10)));
+}
+
+function formatScore10(score: number) {
+  return score.toFixed(1);
+}
+
+function getScoreTitle(intent?: string) {
+  if (intent?.includes("怎么搭")) return "搭配指数";
+  if (intent?.includes("适不适合")) return "契合度";
+  return "留用指数";
+}
+
+function getScoreHint(intent?: string) {
+  if (intent?.includes("怎么搭")) return "衡量的是这件单品通过搭配被穿好的空间。";
+  if (intent?.includes("适不适合")) return "衡量的是与你身形、风格和场景的匹配度。";
+  return "衡量的是保留适配度，不是单品好坏。";
+}
+
+function getItemTags(formData: FormData, result: EvaluationResult) {
+  const visibleItem = result.imageCheck?.visibleMainItem;
+  const tags = [
+    visibleItem && visibleItem !== "看不清" ? visibleItem : formData.itemType,
+    formData.intent || formData.purpose,
+    result.uiSummary.bestScenario,
+    formData.concern,
+  ]
+    .filter(Boolean)
+    .map((item) => String(item).trim())
+    .filter((item, index, arr) => item && arr.indexOf(item) === index)
+    .slice(0, 4);
+
+  return tags.length ? tags : [formData.itemType];
+}
+
+function getAccessoryText(result: EvaluationResult, primaryPlan?: StylingPlan) {
+  return (
+    result.stylingFormula?.avoid ||
+    primaryPlan?.avoid ||
+    primaryPlan?.shoesAndBag ||
+    "小体量配饰即可，避免抢走单品重点。"
+  );
+}
+
+type RxItem = { label: string; value: string };
+
+function getFilteredRxItems(
+  itemType: string,
+  result: EvaluationResult,
+  primaryPlan?: StylingPlan
+): RxItem[] {
+  const f = result.stylingFormula || {};
+  const p = primaryPlan;
+
+  const inner = f.inner || "";
+  const bottom = f.bottom || "";
+  const shoes = f.shoes || "";
+  const bag = f.bag || "";
+  const shoesAndBag = [shoes || p?.shoesAndBag || "", bag].filter(Boolean).join(" + ");
+  const avoid = f.avoid || p?.avoid || "";
+  const outfitDir = inner || bottom || p?.outfit || "";
+
+  switch (itemType) {
+    case "连衣裙":
+      return [
+        { label: "鞋包", value: shoesAndBag || p?.shoesAndBag || "" },
+        { label: "配饰 / 避雷", value: avoid },
+      ].filter((v) => v.value);
+
+    case "上衣":
+      return [
+        { label: "下装", value: bottom || p?.outfit || "" },
+        { label: "鞋包", value: shoesAndBag || p?.shoesAndBag || "" },
+        { label: "配饰 / 避雷", value: avoid },
+      ].filter((v) => v.value);
+
+    case "裤子":
+    case "半裙":
+      return [
+        { label: "上衣", value: inner || p?.outfit || "" },
+        { label: "鞋包", value: shoesAndBag || p?.shoesAndBag || "" },
+        { label: "配饰 / 避雷", value: avoid },
+      ].filter((v) => v.value);
+
+    case "外套":
+      return [
+        { label: "内搭", value: inner || p?.outfit || "" },
+        { label: "下装", value: bottom },
+        { label: "鞋包配饰", value: shoesAndBag || p?.shoesAndBag || "" },
+      ].filter((v) => v.value);
+
+    case "套装":
+      return [
+        { label: "鞋包", value: shoesAndBag || p?.shoesAndBag || "" },
+        { label: "配饰 / 避雷", value: avoid },
+      ].filter((v) => v.value);
+
+    case "鞋子":
+      return [
+        { label: "服装搭配方向", value: outfitDir || p?.outfit || "" },
+        { label: "包配饰", value: [bag, avoid].filter(Boolean).join(" + ") },
+        { label: "避雷", value: avoid },
+      ].filter((v) => v.value);
+
+    case "包 / 配饰":
+      return [
+        { label: "服装搭配方向", value: outfitDir || p?.outfit || "" },
+        { label: "鞋子", value: shoes },
+        { label: "避雷", value: avoid },
+      ].filter((v) => v.value);
+
+    default:
+      return [
+        { label: "内搭", value: inner || p?.outfit || "" },
+        { label: "下装", value: bottom },
+        { label: "鞋包", value: shoesAndBag || p?.shoesAndBag || "" },
+        { label: "配饰 / 避雷", value: avoid },
+      ].filter((v) => v.value);
+  }
+}
+
+function getSpectrumTone(label: DecisionLabel, intent?: string) {
+  if (intent?.includes("怎么搭")) {
+    if (label === "建议放手") return "不建议硬搭";
+    if (label === "再观察") return "需要调整后再搭";
+    if (label === "有条件留下") return "有搭配空间";
+    return "很好搭";
+  }
+
+  if (intent?.includes("适不适合")) {
+    if (label === "建议放手") return "不太适合";
+    if (label === "再观察") return "需要再观察";
+    if (label === "有条件留下") return "有条件适合";
+    return "很适合你";
+  }
+
   if (label === "建议放手") return "偏向不留";
   if (label === "再观察") return "中立观察";
   if (label === "有条件留下") return "有条件保留";
   return "值得留下";
 }
 
+function getMainMetrics(
+  result: EvaluationResult,
+  intent?: string,
+  decisionLabel?: DecisionLabel,
+  primaryPlan?: StylingPlan
+) {
+  if (intent?.includes("怎么搭")) {
+  return [
+    { label: "搭配门槛", value: result.uiSummary.stylingDifficulty },
+    {
+      label: "可行程度",
+      value: decisionLabel ? getDisplayDecisionLabel(decisionLabel, intent) : "有搭配空间",
+    },
+  ];
+}
+
+  if (intent?.includes("适不适合")) {
+    return [
+      {
+        label: "适配程度",
+        value: decisionLabel ? getDisplayDecisionLabel(decisionLabel, intent) : "需要再观察",
+      },
+      { label: "搭配门槛", value: result.uiSummary.stylingDifficulty },
+      { label: "闲置风险", value: result.uiSummary.idleRisk },
+    ];
+  }
+
+  return [
+    { label: "保留价值", value: result.uiSummary.retentionValue },
+    { label: "闲置风险", value: result.uiSummary.idleRisk },
+    { label: "搭配门槛", value: result.uiSummary.stylingDifficulty },
+  ];
+}
+
+function getScenarioLabel(intent?: string) {
+  if (intent?.includes("怎么搭")) return "推荐场景";
+  if (intent?.includes("适不适合")) return "适合场景";
+  return "适合场景";
+}
+
+function getEvidenceItems(result: EvaluationResult, intent?: string, primaryPlan?: StylingPlan) {
+  const visual = result.visualAnalysis || {};
+  const color = visual.color || "";
+  const silhouette = visual.silhouette || "";
+  const proportion = visual.proportion || "";
+  const fabric = visual.fabricAndDetails || visual.stylingPotential || visual.imageQuality || "";
+  const colorAndFabric = [color, fabric].filter(Boolean).join("；");
+  const shapeAndProportion = [silhouette, proportion].filter(Boolean).join("；");
+
+  if (intent?.includes("怎么搭")) {
+    return [
+      {
+        title: "风格方向",
+        detail:
+          primaryPlan?.whyItWorks ||
+          result.decision.headline ||
+          "先确定整体风格，再决定内搭、下装和鞋包。",
+      },
+      {
+        title: "版型比例",
+        detail: shapeAndProportion || "重点是控制衣长、腰线和鞋型，让比例更清楚。",
+      },
+      {
+        title: "颜色材质",
+        detail: colorAndFabric || "颜色和材质决定它更适合作为过渡层还是主角单品。",
+      },
+      {
+        title: "搭配影响",
+        detail:
+          primaryPlan?.avoid ||
+          "搭配时要避开会放大短板的单品，让整体线条更利落。",
+      },
+    ];
+  }
+
+  if (intent?.includes("适不适合")) {
+    return [
+      {
+        title: "颜色材质",
+        detail: colorAndFabric || "颜色和材质会影响它是否提气色、显精神。",
+      },
+      {
+        title: "版型比例",
+        detail: shapeAndProportion || "需要结合肩线、衣长、腰线和视觉重心判断适配度。",
+      },
+      {
+        title: "细节状态",
+        detail: fabric || silhouette || "重点看褶皱、垂感、门襟、袖长和细节是否影响利落度。",
+      },
+      {
+        title: "适配影响",
+        detail:
+          primaryPlan?.avoid ||
+          primaryPlan?.whyItWorks ||
+          "它是否适合你，取决于这些细节能不能被搭配修正。",
+      },
+    ];
+  }
+
+  return [
+    {
+      title: "颜色材质",
+      detail: colorAndFabric || "颜色和材质会影响它的保留价值和日常质感。",
+    },
+    {
+      title: "版型比例",
+      detail: shapeAndProportion || "需要结合版型、比例和视觉重心判断真实利用率。",
+    },
+    {
+      title: "细节状态",
+      detail: fabric || silhouette || "重点看褶皱、垂感、门襟、袖长和细节是否影响利落度。",
+    },
+    {
+      title: "穿着影响",
+      detail:
+        primaryPlan?.avoid ||
+        primaryPlan?.whyItWorks ||
+        "这些细节会决定它是容易常穿，还是需要特定搭配才成立。",
+    },
+  ];
+}
+
 function clampScore(score: number) {
   return Math.max(1, Math.min(5, Math.round(score)));
 }
 
-function getFallbackRatings(
-  formData: FormData,
-  result: EvaluationResult
-): RatingItem[] {
+function getFallbackRatings(formData: FormData, result: EvaluationResult): RatingItem[] {
   const decisionLabel = normalizeDecisionLabel(result.decision.label);
 
   const fit =
@@ -200,15 +733,6 @@ function normalizeRatingLabel(label: string) {
   return label;
 }
 
-function SummaryItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div className={styles.summaryItem}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
 function RatingCard({ item }: { item: RatingItem }) {
   const score = clampScore(item.score);
   const width = `${score * 20}%`;
@@ -232,11 +756,38 @@ function RatingCard({ item }: { item: RatingItem }) {
   );
 }
 
+function saveFeedback(value: string) {
+  const feedbackPayload = {
+    value,
+    createdAt: new Date().toISOString(),
+  };
+
+  localStorage.setItem("keepOrLetGoFeedback", JSON.stringify(feedbackPayload));
+}
+
 export default function Result() {
   const router = useRouter();
   const [formData, setFormData] = useState<FormData | null>(null);
   const [result, setResult] = useState<EvaluationResult | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [feedback, setFeedback] = useState("");
+
+  const handleFeedback = (value: string) => {
+    setFeedback(value);
+    saveFeedback(value);
+  };
+
+  const handleStartNew = () => {
+    localStorage.removeItem("keepOrLetGoForm");
+    localStorage.removeItem("keepOrLetGoResult");
+    localStorage.removeItem("keepOrLetGoFeedback");
+    router.push("/decision-helper?reset=1");
+  };
+
+  const handleEditForm = () => {
+    localStorage.removeItem("keepOrLetGoResult");
+    router.push("/decision-helper");
+  };
 
   useEffect(() => {
     const rawForm = localStorage.getItem("keepOrLetGoForm");
@@ -245,8 +796,12 @@ export default function Result() {
     try {
       if (rawForm) {
         const parsedForm = JSON.parse(rawForm);
-        if (isValidForm(parsedForm)) {
-          setFormData(parsedForm);
+        const normalizedForm = normalizeFormData(parsedForm);
+
+        if (normalizedForm) {
+          setFormData(normalizedForm);
+        } else {
+          localStorage.removeItem("keepOrLetGoForm");
         }
       }
 
@@ -254,13 +809,16 @@ export default function Result() {
         const parsedResult = JSON.parse(rawResult);
         if (isValidResult(parsedResult)) {
           setResult(parsedResult);
+        } else {
+          localStorage.removeItem("keepOrLetGoResult");
         }
       }
     } catch (error) {
-      console.error("解析结果页 localStorage 失败", error);
+      console.error("读取结果失败", error);
+      localStorage.removeItem("keepOrLetGoResult");
+    } finally {
+      setLoaded(true);
     }
-
-    setLoaded(true);
   }, []);
 
   if (!loaded) {
@@ -272,24 +830,29 @@ export default function Result() {
       <div className={styles.page}>
         <main className={styles.main}>
           <div className={styles.header}>
-            <div className={styles.pageBadge}>Result · 判断报告</div>
-            <h1 className={styles.title}>还没有判断结果</h1>
-            <p className={styles.subtitle}>请先上传衣服图片并完成一次判断。</p>
+            <div className={styles.pageBadge}>判断报告</div>
+            <h1 className={styles.title}>还没有生成判断结果</h1>
+            <p className={styles.subtitle}>
+              请先上传一张衣服图片，完成一次判断。结果生成后会显示在这里。
+            </p>
           </div>
 
           <section className={styles.suggestCard}>
-            <div className={styles.suggestionLabel}>Empty State</div>
-            <h2 className={styles.suggestionText}>先去判断一件衣服</h2>
+            <div className={styles.suggestionLabel}>暂无数据</div>
+            <h2 className={styles.suggestionText}>暂无结果</h2>
             <p className={styles.suggestionDesc}>
-              完成图片上传和表单选择后，这里会展示完整的留 / 不留判断报告。
+              可能是还没有生成过判断，或浏览器本地结果已被清空。
             </p>
-            <div className={styles.buttonArea}>
+
+            <div className={styles.bottomButtonArea}>
               <button
-                type="button"
-                className={styles.submitButton}
-                onClick={() => router.push("/decision-helper")}
+                className={styles.primaryButton}
+                onClick={() => router.push("/decision-helper?reset=1")}
               >
-                去填写表单
+                开始判断一件衣服
+              </button>
+              <button className={styles.secondaryButton} onClick={() => router.push("/")}>
+                返回首页
               </button>
             </div>
           </section>
@@ -299,256 +862,323 @@ export default function Result() {
   }
 
   const decisionLabel = normalizeDecisionLabel(result.decision.label);
-  const ratings =
-    result.ratings && result.ratings.length > 0
-      ? result.ratings
-      : getFallbackRatings(formData, result);
+  const primaryPlan = result.stylingPlans[0];
+  const morePlans = result.stylingPlans.slice(1);
+  const evidenceItems = getEvidenceItems(result, formData.intent, primaryPlan);
+  const imageCheckWarning = getImageCheckWarning(result);
+  const sharpScore = getSharpScore(result, decisionLabel);
+  const scorePercent = getScorePercent(sharpScore);
+  const scoreDisplay = formatScore10(sharpScore);
+  const sharpComment = getSharpComment(result, decisionLabel, formData.intent);
+  const sharpReason = getOneLineReason(result);
+  const biggestProblem = getBiggestProblem(result);
+  const keepConditions = getKeepConditions(result, primaryPlan);
+  const dropReasons = getDropReasons(result);
+  const reportNumber = getReportNumber();
+  const itemTags = getItemTags(formData, result);
+  const accessoryText = getAccessoryText(result, primaryPlan);
 
-  const visualItems = [
-    {
-      label: "颜色",
-      value:
-        result.visualAnalysis?.color ||
-        "暂未返回独立颜色分析。可以重新生成一次，让 AI 更具体地判断颜色。",
-    },
-    {
-      label: "版型轮廓",
-      value:
-        result.visualAnalysis?.silhouette ||
-        "暂未返回独立版型分析。可以结合最终判断和搭配建议参考。",
-    },
-    {
-      label: "比例效果",
-      value:
-        result.visualAnalysis?.proportion ||
-        "暂未返回独立比例分析。可以重新生成一次，让 AI 更关注腰线、长度和视觉重心。",
-    },
-    {
-      label: "材质细节",
-      value:
-        result.visualAnalysis?.fabricAndDetails ||
-        result.visualAnalysis?.stylingPotential ||
-        result.visualAnalysis?.imageQuality ||
-        "暂未返回独立材质细节分析。图片清晰度会影响判断。",
-    },
-  ];
+
+
+
+  if (shouldBlockForInvisibleTarget(result)) {
+    return (
+      <div className={styles.page}>
+        <main className={styles.main}>
+          <div className={styles.header}>
+            <div className={styles.pageBadge}>图片信息不足</div>
+            <h1 className={styles.title}>没有看清你要判断的单品</h1>
+            <p className={styles.subtitle}>
+              {imageCheckWarning || "请重新上传能看清目标单品的图片，或返回表单修改单品类型。"}
+            </p>
+          </div>
+
+          <section className={styles.resultHeroGrid}>
+            <div className={styles.suggestCard}>
+              <div className={styles.suggestionLabel}>需要重新确认</div>
+              <h2 className={styles.suggestionText}>图片信息不足</h2>
+              <p className={styles.suggestionDesc}>
+                你选择的是「{result.imageCheck?.selectedItemType || formData.itemType}」，
+                但图片里没有清楚看到这个单品。为了避免误判，建议先修改图片或单品类型。
+              </p>
+
+              <div className={styles.bottomButtonArea}>
+                <button className={styles.primaryButton} onClick={handleEditForm}>
+                  修改单品类型
+                </button>
+                <button className={styles.secondaryButton} onClick={handleStartNew}>
+                  重新上传图片
+                </button>
+              </div>
+            </div>
+
+            <div className={styles.imagePanel}>
+              <div className={styles.imagePanelHeader}>
+                <span>上传图片</span>
+                <strong>目标单品不可见</strong>
+              </div>
+
+              <div className={styles.resultImageBox}>
+                {formData.imageDataUrl ? (
+                  <img
+                    src={formData.imageDataUrl}
+                    alt={formData.imageName || "上传的图片"}
+                    className={styles.resultImage}
+                  />
+                ) : (
+                  <div className={styles.noImageState}>没有读取到图片预览</div>
+                )}
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.page}>
       <main className={styles.main}>
-        <div className={styles.header}>
-          <div className={styles.pageBadge}>Result · 判断报告</div>
-          <h1 className={styles.title}>你的留 / 不留建议</h1>
-          <p className={styles.subtitle}>
-            结合上传图片和你的真实感受，判断它是否值得占据衣橱位置。
-          </p>
-        </div>
+        <header className={styles.reportHeader}>
+          <div>
+            <span>留不留</span>
+            <em>|</em>
+            <span>FIT REVIEW</span>
+          </div>
+          <strong>{reportNumber}</strong>
+        </header>
 
-        <section className={styles.resultHeroGrid}>
-          <div className={styles.imagePanel}>
-            <div className={styles.imagePanelHeader}>
-              <span>Uploaded Item</span>
-              <strong>AI 已参考图片</strong>
-            </div>
+        <section className={styles.editorialVerdictCard}>
+          <div className={styles.verdictAccentLine} />
 
-            <div className={styles.resultImageBox}>
-              {formData.imageDataUrl ? (
-                <img
-                  src={formData.imageDataUrl}
-                  alt={formData.imageName || "上传的衣服图片"}
-                  className={styles.resultImage}
-                />
-              ) : (
-                <div className={styles.noImageState}>没有读取到图片预览</div>
-              )}
-            </div>
-
-            <div className={styles.formChips}>
-              <span>{formData.itemType}</span>
-              <span>{formData.scenario}</span>
-              <span>{formData.concern}</span>
-            </div>
+          <div className={styles.verdictTopline}>
+            <span>THE VERDICT</span>
+            <strong>VERDICT</strong>
           </div>
 
-          <div className={styles.suggestCard}>
-            <div className={styles.suggestionLabel}>最终倾向</div>
-            <h2 className={styles.suggestionText}>{decisionLabel}</h2>
-            <p className={styles.suggestionDesc}>{result.decision.headline}</p>
+          <div className={styles.verdictBody}>
+            <h1>{getVerdictWord(decisionLabel, formData.intent)}</h1>
+            <p>{sharpComment}</p>
+          </div>
 
-            <div className={styles.heroMetaGrid}>
-              <div>
-                <span>第一感受</span>
-                <strong>{formData.feeling}</strong>
-              </div>
-              <div>
-                <span>类似单品</span>
-                <strong>{formData.similarItems}</strong>
-              </div>
-              <div>
-                <span>主要场景</span>
-                <strong>{formData.scenario}</strong>
-              </div>
+          <div className={styles.verdictScoreStrip}>
+            <div className={styles.verdictScoreHeader}>
+              <span>{getScoreTitle(formData.intent)}</span>
+              <strong>{scoreDisplay}<em>/10</em></strong>
             </div>
+            <div className={styles.verdictScoreTrack}>
+              <div className={styles.verdictScoreFill} style={{ width: `${scorePercent}%` }} />
+              <div className={styles.verdictScoreMarker} style={{ left: `${scorePercent}%` }} />
+            </div>
+            <p className={styles.verdictScoreHint}>{getScoreHint(formData.intent)}</p>
+          </div>
+
+          <div className={styles.verdictReasonBox}>
+            <span>判断依据</span>
+            <p>{sharpReason}。{biggestProblem}</p>
+          </div>
+
+          <div className={styles.verdictMetaLine}>
+            <span>{getScenarioLabel(formData.intent)}</span>
+            <strong>{result.uiSummary.bestScenario}</strong>
           </div>
         </section>
 
-        <section className={styles.spectrumSection}>
-          <div className={styles.spectrumHeader}>
+        <section className={styles.uploadEvidenceCard}>
+          <div className={styles.uploadEvidenceHeader}>
             <div>
-              <h3>留 / 不留光谱</h3>
-              <p>{getDecisionTone(decisionLabel)}</p>
+              <span>上传的单品</span>
+              <strong>已分析</strong>
             </div>
-            <strong>{decisionLabel}</strong>
+            <em>{formData.itemType}</em>
           </div>
 
-          <div className={styles.spectrumTrack}>
-            <div
-              className={styles.spectrumMarker}
-              style={{ left: getDecisionPosition(decisionLabel) }}
-            />
+          <div className={styles.uploadImageFrame}>
+            {formData.imageDataUrl ? (
+              <img
+                src={formData.imageDataUrl}
+                alt={formData.imageName || "上传的衣服图片"}
+                className={styles.uploadEvidenceImage}
+              />
+            ) : (
+              <div className={styles.noImageState}>没有读取到图片预览</div>
+            )}
+
+            <div className={styles.imageOverlayPill}>
+              {result.imageCheck?.visibleMainItem || formData.itemType}
+            </div>
           </div>
 
-          <div className={styles.spectrumLabels}>
-            <span>建议放手</span>
-            <span>再观察</span>
-            <span>有条件留下</span>
-            <span>值得留下</span>
+          <div className={styles.itemTagRow}>
+            {itemTags.map((tag) => (
+              <span key={tag}>{tag}</span>
+            ))}
           </div>
 
-          <div className={styles.summaryGrid}>
-            <SummaryItem label="保留价值" value={result.uiSummary.retentionValue} />
-            <SummaryItem label="闲置风险" value={result.uiSummary.idleRisk} />
-            <SummaryItem label="搭配门槛" value={result.uiSummary.stylingDifficulty} />
-            <SummaryItem label="适合场景" value={result.uiSummary.bestScenario} />
-          </div>
+          {imageCheckWarning && (
+            <div className={styles.warningBox}>
+              <span>图片校正提示</span>
+              <p>{imageCheckWarning}</p>
+            </div>
+          )}
         </section>
 
-        <section className={styles.analysisSection}>
-          <div className={styles.analysisCard}>
-            <h3 className={styles.analysisTitle}>为什么是这个结论</h3>
-            <p className={styles.adviceText}>{result.decision.reason}</p>
-          </div>
-        </section>
+        {(() => {
+  const rxItems = getFilteredRxItems(formData.itemType, result, primaryPlan);
+  const hasRx = rxItems.length > 0 || primaryPlan;
 
-        <section className={styles.analysisSection}>
-          <div className={styles.analysisCard}>
-            <h3 className={styles.analysisTitle}>图片观察</h3>
-            <div className={styles.visualGrid}>
-              {visualItems.map((item) => (
-                <div key={item.label} className={styles.visualItem}>
-                  <span>{item.label}</span>
-                  <p>{item.value}</p>
+  if (!hasRx) return null;
+
+  return (
+    <section className={styles.stylingRxCard}>
+      <div className={styles.rxHeader}>
+        <span>造型处方</span>
+        <strong>STYLING RX</strong>
+      </div>
+
+      {primaryPlan?.whyItWorks && (
+        <p className={styles.rxIntro}>{primaryPlan.whyItWorks}</p>
+      )}
+
+      <div className={styles.rxList}>
+        {rxItems.map((item, index) => (
+          <div key={index} className={styles.rxItem}>
+            <em>{String(index + 1).padStart(2, "0")}</em>
+            <div>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className={styles.rxColorNote}>
+        <span className={styles.rxColorDots}>
+          <span className={styles.rxColorDot} />
+          <span className={styles.rxColorDot} />
+          <span className={styles.rxColorDot} />
+        </span>
+        <span>配色方向</span>
+        <p>{getFormulaValue(result, "color", primaryPlan?.colorDirection || "")}</p>
+      </div>
+
+      {morePlans.length > 0 && (
+        <details className={styles.inlineDetails}>
+          <summary>查看其他搭配方案</summary>
+          <div className={styles.miniPlanList}>
+            {morePlans.map((plan, index) => (
+              <div key={index}>
+                <strong>{plan.scenario}</strong>
+                <p>{plan.outfit}</p>
+                <span>
+                  鞋包：{plan.shoesAndBag}；颜色：{plan.colorDirection}
+                </span>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </section>
+  );
+})()}
+
+        <section className={styles.breakdownCard}>
+          <div className={styles.breakdownHeader}>
+            <span>详细分析</span>
+            <strong>BREAKDOWN</strong>
+          </div>
+
+          <div className={styles.breakdownList}>
+            <details className={styles.breakdownItem} open>
+              <summary>
+                <span>版型与廓形</span>
+                <em>+</em>
+              </summary>
+              <p>{result.visualAnalysis?.silhouette || evidenceItems[1]?.detail}</p>
+            </details>
+
+            <details className={styles.breakdownItem}>
+              <summary>
+                <span>色彩适配</span>
+                <em>+</em>
+              </summary>
+              <p>{result.visualAnalysis?.color || evidenceItems[0]?.detail}</p>
+            </details>
+
+            <details className={styles.breakdownItem}>
+              <summary>
+                <span>比例与材质</span>
+                <em>+</em>
+              </summary>
+              <p>
+                {[result.visualAnalysis?.proportion, result.visualAnalysis?.fabricAndDetails]
+                  .filter(Boolean)
+                  .join("；") || evidenceItems[2]?.detail}
+              </p>
+            </details>
+
+            <details className={styles.breakdownItem}>
+              <summary>
+                <span>保留 / 放手条件</span>
+                <em>+</em>
+              </summary>
+              <div className={styles.breakdownConditionGrid}>
+                <div>
+                  <strong>可以留</strong>
+                  <ul>
+                    {keepConditions.map((item, index) => (
+                      <li key={index}>{item}</li>
+                    ))}
+                  </ul>
                 </div>
-              ))}
-            </div>
-            <p className={styles.sourceNote}>判断来源：上传图片 + 表单信息</p>
-          </div>
-        </section>
-
-        <section className={styles.analysisSection}>
-          <div className={styles.analysisCard}>
-            <h3 className={styles.analysisTitle}>维度评分</h3>
-            <div className={styles.ratingGrid}>
-              {ratings.map((item) => (
-                <RatingCard key={item.label} item={item} />
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className={styles.twoColumnSection}>
-          <div className={styles.analysisCard}>
-            <h3 className={styles.analysisTitle}>留它的理由</h3>
-            <ul className={styles.analysisList}>
-              {result.keepReasons.map((reason, index) => (
-                <li key={index}>
-                  <strong>{reason.title}：</strong>
-                  {reason.detail}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className={styles.analysisCard}>
-            <h3 className={styles.analysisTitle}>不留的风险</h3>
-            <ul className={styles.analysisList}>
-              {result.riskReasons.map((reason, index) => (
-                <li key={index}>
-                  <strong>{reason.title}：</strong>
-                  {reason.detail}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
-
-        <section className={styles.analysisSection}>
-          <div className={styles.analysisCard}>
-            <h3 className={styles.analysisTitle}>搭配方案</h3>
-            <div className={styles.stylingGrid}>
-              {result.stylingPlans.map((plan, index) => (
-                <div key={index} className={styles.stylingCard}>
-                  <div className={styles.stylingCardHeader}>
-                    <strong>{plan.scenario}</strong>
-                    <span>核心建议</span>
-                  </div>
-
-                  <p className={styles.outfitText}>{plan.outfit}</p>
-
-                  <div className={styles.stylingTags}>
-                    <span>鞋包：{plan.shoesAndBag}</span>
-                    <span>颜色：{plan.colorDirection}</span>
-                  </div>
-
-                  <p className={styles.avoidText}>避免：{plan.avoid}</p>
-                  <p className={styles.whyText}>{plan.whyItWorks}</p>
+                <div>
+                  <strong>不建议留</strong>
+                  <ul>
+                    {dropReasons.map((item, index) => (
+                      <li key={index}>{item}</li>
+                    ))}
+                  </ul>
                 </div>
-              ))}
-            </div>
-          </div>
-        </section>
+              </div>
+            </details>
 
-        <section className={styles.analysisSection}>
-          <div className={styles.finalAdviceCard}>
-            <h3 className={styles.analysisTitle}>{result.replacementAdvice.title}</h3>
-            <ul className={styles.analysisList}>
-              {result.replacementAdvice.suggestions.map((suggestion, index) => (
-                <li key={index}>{suggestion}</li>
-              ))}
-            </ul>
-          </div>
-        </section>
-
-        <section className={styles.analysisSection}>
-          <div className={styles.analysisCard}>
-            <h3 className={styles.analysisTitle}>最终建议</h3>
-            <p className={styles.adviceText}>{result.finalNote}</p>
+            <details className={styles.breakdownItem}>
+              <summary>
+                <span>替代购买方向</span>
+                <em>+</em>
+              </summary>
+              <div className={styles.replacementList}>
+                <strong>{result.replacementAdvice.title}</strong>
+                <ul>
+                  {result.replacementAdvice.suggestions.map((suggestion, index) => (
+                    <li key={index}>{suggestion}</li>
+                  ))}
+                </ul>
+              </div>
+            </details>
           </div>
         </section>
 
         <section className={styles.feedbackCard}>
-          <h3>这个判断对你有帮助吗？</h3>
+          <h3>这次评估对你有帮助吗？</h3>
+
           <div className={styles.feedbackButtons}>
-            <button type="button">有帮助！</button>
-            <button type="button">还是很纠结</button>
-            <button type="button">根本没帮助</button>
+            <button type="button" onClick={() => handleFeedback("有帮助")}>有帮助</button>
+            <button type="button" onClick={() => handleFeedback("再想想")}>再想想</button>
+            <button type="button" onClick={() => handleFeedback("没帮助")}>没帮助</button>
           </div>
+
+          {feedback && <p className={styles.feedbackNote}>已记录：{feedback}。</p>}
         </section>
 
         <div className={styles.bottomButtonArea}>
-          <button
-            className={styles.primaryButton}
-            onClick={() => router.push("/decision-helper")}
-          >
+          <button className={styles.primaryButton} onClick={handleStartNew}>
             再判断一件
           </button>
-          <button
-            className={styles.secondaryButton}
-            onClick={() => router.push("/decision-helper")}
-          >
-            重新编辑信息
+          <button className={styles.secondaryButton} onClick={handleEditForm}>
+            修改表单重新判断
           </button>
-          <button className={styles.secondaryButton} onClick={() => router.push("/")}>
+          <button className={styles.secondaryButton} onClick={() => router.push("/") }>
             返回首页
           </button>
         </div>

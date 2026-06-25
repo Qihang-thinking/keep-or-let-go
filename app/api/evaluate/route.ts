@@ -3,11 +3,16 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 type RequestBody = {
+  purpose?: string;
   itemType?: string;
   concern?: string;
   feeling?: string;
+  firstFeeling?: string;
   similarItems?: string;
   scenario?: string;
+  occasion?: string;
+  priceFeeling?: string;
+  extraInfo?: string;
   note?: string;
   imageName?: string;
   imageDataUrl?: string;
@@ -26,6 +31,53 @@ type KimiResponse = {
   };
 };
 
+function normalizeBody(raw: Record<string, any>): RequestBody {
+  const form = raw.form || {};
+  const formData = raw.formData || {};
+
+  return {
+    imageDataUrl:
+      raw.imageDataUrl ||
+      raw.image ||
+      raw.imageBase64 ||
+      form.imageDataUrl ||
+      formData.imageDataUrl ||
+      "",
+    imageName: raw.imageName || form.imageName || formData.imageName || "",
+    purpose: raw.purpose || form.purpose || formData.purpose || "",
+    itemType: raw.itemType || form.itemType || formData.itemType || "",
+    concern: raw.concern || form.concern || formData.concern || "",
+    feeling:
+      raw.feeling ||
+      raw.firstFeeling ||
+      form.feeling ||
+      form.firstFeeling ||
+      formData.feeling ||
+      formData.firstFeeling ||
+      "",
+    firstFeeling:
+      raw.firstFeeling ||
+      form.firstFeeling ||
+      formData.firstFeeling ||
+      "",
+    similarItems:
+      raw.similarItems || form.similarItems || formData.similarItems || "",
+    scenario:
+      raw.scenario ||
+      raw.occasion ||
+      form.scenario ||
+      form.occasion ||
+      formData.scenario ||
+      formData.occasion ||
+      "",
+    occasion: raw.occasion || form.occasion || formData.occasion || "",
+    priceFeeling:
+      raw.priceFeeling || form.priceFeeling || formData.priceFeeling || "",
+    extraInfo: raw.extraInfo || form.extraInfo || formData.extraInfo || "",
+    note: raw.note || form.note || formData.note || form.extraInfo || formData.extraInfo || "",
+  };
+}
+
 function buildPrompt(body: RequestBody, compact = false) {
   const lengthRule = compact
     ? "每个字符串字段不超过 45 个中文字符。搭配方案只写关键词式短句。"
@@ -35,6 +87,7 @@ function buildPrompt(body: RequestBody, compact = false) {
 你是「留不留」中文衣橱决策助手。请根据用户上传的衣服图片和表单信息，判断这件衣服是否值得留下。
 
 用户信息：
+判断目的：${body.purpose || "未知"}
 单品类型：${body.itemType || "未知"}
 纠结点：${body.concern || "未知"}
 第一感受：${body.feeling || "未知"}
@@ -300,15 +353,10 @@ function parseResult(content: string) {
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as RequestBody;
+    const rawBody = (await request.json()) as Record<string, any>;
+    const body = normalizeBody(rawBody);
 
-    if (
-      !body.itemType ||
-      !body.concern ||
-      !body.feeling ||
-      !body.similarItems ||
-      !body.scenario
-    ) {
+    if (!body.imageDataUrl || !body.purpose || !body.itemType) {
       return NextResponse.json(
         { error: "缺少必填的判断信息。" },
         { status: 400 }
