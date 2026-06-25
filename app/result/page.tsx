@@ -3,6 +3,7 @@
 import { CSSProperties, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./page.module.css";
+import generateShareImage from "./generateShareImage";
 
 type DecisionLabel = "建议放手" | "再观察" | "有条件留下" | "值得留下";
 
@@ -771,6 +772,9 @@ export default function Result() {
   const [result, setResult] = useState<EvaluationResult | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [feedback, setFeedback] = useState("");
+  const [showShare, setShowShare] = useState(false);
+  const [shareImageUrl, setShareImageUrl] = useState("");
+  const [isGeneratingShare, setIsGeneratingShare] = useState(false);
 
   const handleFeedback = (value: string) => {
     setFeedback(value);
@@ -877,6 +881,38 @@ export default function Result() {
   const reportNumber = getReportNumber();
   const itemTags = getItemTags(formData, result);
   const accessoryText = getAccessoryText(result, primaryPlan);
+
+  const handleShareImage = async () => {
+    if (!formData || !result) return;
+
+    setShowShare(true);
+    setShareImageUrl("");
+    setIsGeneratingShare(true);
+
+    try {
+      const ratings =
+        result.ratings && result.ratings.length > 0
+          ? result.ratings
+          : getFallbackRatings(formData, result);
+
+      const url = await generateShareImage({
+        decisionLabel: getVerdictWord(decisionLabel, formData.intent),
+        decisionHeadline: sharpComment || result.decision.headline || result.finalNote,
+        decisionEvidence: [sharpReason, biggestProblem].filter(Boolean).join("。"),
+        scoreText: scoreDisplay,
+        scoreTitle: getScoreTitle(formData.intent),
+        ratings,
+        stylingPlan: primaryPlan,
+        imageDataUrl: formData.imageDataUrl,
+      });
+
+      setShareImageUrl(url);
+    } catch (error) {
+      console.error("生成分享图失败", error);
+    } finally {
+      setIsGeneratingShare(false);
+    }
+  };
 
 
 
@@ -1175,6 +1211,9 @@ export default function Result() {
           <button className={styles.primaryButton} onClick={handleStartNew}>
             再判断一件
           </button>
+          <button className={styles.secondaryButton} onClick={handleShareImage}>
+            生成分享图
+          </button>
           <button className={styles.secondaryButton} onClick={handleEditForm}>
             修改表单重新判断
           </button>
@@ -1183,6 +1222,84 @@ export default function Result() {
           </button>
         </div>
       </main>
+
+      {showShare && (
+        <div
+          onClick={() => setShowShare(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            background: "rgba(47, 41, 38, 0.48)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: "min(92vw, 420px)",
+              maxHeight: "86vh",
+              overflow: "auto",
+              borderRadius: 24,
+              background: "#fffefd",
+              padding: 18,
+              boxShadow: "0 18px 60px rgba(47, 41, 38, 0.22)",
+            }}
+          >
+            {isGeneratingShare ? (
+              <p style={{ margin: 0, padding: 24, textAlign: "center", color: "#7a6f69" }}>
+                正在生成分享图…
+              </p>
+            ) : shareImageUrl ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={shareImageUrl}
+                  alt="分享图"
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    maxHeight: "68vh",
+                    objectFit: "contain",
+                    borderRadius: 16,
+                    userSelect: "none",
+                    WebkitUserSelect: "none",
+                    WebkitTouchCallout: "default",
+                  }}
+                />
+                <p style={{ margin: "12px 0 0", textAlign: "center", color: "#7a6f69", fontSize: 14 }}>
+                  长按图片保存 / 分享
+                </p>
+              </>
+            ) : (
+              <p style={{ margin: 0, padding: 24, textAlign: "center", color: "#7a6f69" }}>
+                生成失败，请重试。
+              </p>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setShowShare(false)}
+              style={{
+                width: "100%",
+                marginTop: 14,
+                border: "none",
+                borderRadius: 999,
+                padding: "12px 16px",
+                background: "#9b6572",
+                color: "#fff",
+                fontWeight: 700,
+                fontSize: 15,
+              }}
+            >
+              关闭
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
